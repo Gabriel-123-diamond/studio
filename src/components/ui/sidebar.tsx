@@ -1,6 +1,8 @@
+
 "use client"
 
 import * as React from "react"
+import NextLink from 'next/link'; // Import Link from Next.js
 import { Slot } from "@radix-ui/react-slot"
 import { VariantProps, cva } from "class-variance-authority"
 import { PanelLeft } from "lucide-react"
@@ -177,7 +179,7 @@ const Sidebar = React.forwardRef<
   ) => {
     const { isMobile, state, openMobile, setOpenMobile } = useSidebar()
 
-    if (collapsible === "none") {
+    if (collapsible === "none" && !isMobile) { // Keep none-collapsible sidebar on desktop
       return (
         <div
           className={cn(
@@ -191,10 +193,11 @@ const Sidebar = React.forwardRef<
         </div>
       )
     }
-
+    
+    // Mobile sidebar is always a sheet
     if (isMobile) {
       return (
-        <Sheet open={openMobile} onOpenChange={setOpenMobile} {...props}>
+        <Sheet open={openMobile} onOpenChange={setOpenMobile}>
           <SheetContent
             data-sidebar="sidebar"
             data-mobile="true"
@@ -212,6 +215,7 @@ const Sidebar = React.forwardRef<
       )
     }
 
+    // Desktop collapsible sidebar
     return (
       <div
         ref={ref}
@@ -252,6 +256,7 @@ const Sidebar = React.forwardRef<
           >
             {children}
           </div>
+           {collapsible !== "none" && <SidebarRail />}
         </div>
       </div>
     )
@@ -533,13 +538,19 @@ const sidebarMenuButtonVariants = cva(
   }
 )
 
+// Combined props type for SidebarMenuButton
+type SidebarMenuButtonProps = 
+  (React.ComponentProps<"button"> | Omit<React.ComponentProps<typeof NextLink>, 'href'> & { href: string }) & { // Omit NextLink's href to use our own definition if needed, or ensure it's a string
+    asChild?: boolean;
+    isActive?: boolean;
+    tooltip?: string | React.ComponentProps<typeof TooltipContent>;
+    // href is implicitly part of NextLink props if used, or can be defined explicitly
+  } & VariantProps<typeof sidebarMenuButtonVariants>;
+
+
 const SidebarMenuButton = React.forwardRef<
-  HTMLButtonElement,
-  React.ComponentProps<"button"> & {
-    asChild?: boolean
-    isActive?: boolean
-    tooltip?: string | React.ComponentProps<typeof TooltipContent>
-  } & VariantProps<typeof sidebarMenuButtonVariants>
+  HTMLElement, // Generic ref type for button or anchor
+  SidebarMenuButtonProps
 >(
   (
     {
@@ -549,48 +560,65 @@ const SidebarMenuButton = React.forwardRef<
       size = "default",
       tooltip,
       className,
+      children,
+      href, // Destructure href
       ...props
     },
     ref
   ) => {
-    const Comp = asChild ? Slot : "button"
-    const { isMobile, state } = useSidebar()
+    const { isMobile, state } = useSidebar();
 
-    const button = (
-      <Comp
-        ref={ref}
-        data-sidebar="menu-button"
-        data-size={size}
-        data-active={isActive}
-        className={cn(sidebarMenuButtonVariants({ variant, size }), className)}
-        {...props}
-      />
-    )
+    let RenderComp: React.ElementType = "button";
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const componentProps: any = {
+      ref,
+      "data-sidebar": "menu-button",
+      "data-size": size,
+      "data-active": isActive,
+      className: cn(sidebarMenuButtonVariants({ variant, size, className })),
+      ...props,
+    };
+
+    if (asChild) {
+      RenderComp = Slot;
+    } else if (href) {
+      RenderComp = NextLink;
+      componentProps.href = href;
+    }
+    
+    // If it's a regular button (not asChild and no href), remove href from props if it somehow got there
+    if (RenderComp === "button" && componentProps.href) {
+      delete componentProps.href;
+    }
+
+
+    const buttonElement = (
+      <RenderComp {...componentProps}>
+        {children}
+      </RenderComp>
+    );
 
     if (!tooltip) {
-      return button
+      return buttonElement;
     }
 
-    if (typeof tooltip === "string") {
-      tooltip = {
-        children: tooltip,
-      }
-    }
+    const tooltipContentProps = typeof tooltip === "string" ? { children: tooltip } : tooltip;
 
     return (
       <Tooltip>
-        <TooltipTrigger asChild>{button}</TooltipTrigger>
+        <TooltipTrigger asChild>{buttonElement}</TooltipTrigger>
         <TooltipContent
           side="right"
           align="center"
           hidden={state !== "collapsed" || isMobile}
-          {...tooltip}
+          {...tooltipContentProps}
         />
       </Tooltip>
-    )
+    );
   }
-)
-SidebarMenuButton.displayName = "SidebarMenuButton"
+);
+SidebarMenuButton.displayName = "SidebarMenuButton";
+
 
 const SidebarMenuAction = React.forwardRef<
   HTMLButtonElement,
@@ -706,32 +734,49 @@ const SidebarMenuSubItem = React.forwardRef<
 SidebarMenuSubItem.displayName = "SidebarMenuSubItem"
 
 const SidebarMenuSubButton = React.forwardRef<
-  HTMLAnchorElement,
-  React.ComponentProps<"a"> & {
+  HTMLAnchorElement, // Should be HTMLElement if it can be a button
+  React.ComponentProps<"a"> & { // Or button props
     asChild?: boolean
     size?: "sm" | "md"
     isActive?: boolean
+    href?: string; // Make href explicit for clarity
   }
->(({ asChild = false, size = "md", isActive, className, ...props }, ref) => {
-  const Comp = asChild ? Slot : "a"
+>(({ asChild = false, size = "md", isActive, className, href, children, ...props }, ref) => {
+  
+  let RenderComp: React.ElementType = "button";
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const componentProps: any = {
+    ref,
+    "data-sidebar": "menu-sub-button",
+    "data-size": size,
+    "data-active": isActive,
+    className: cn(
+      "flex h-7 min-w-0 -translate-x-px items-center gap-2 overflow-hidden rounded-md px-2 text-sidebar-foreground outline-none ring-sidebar-ring hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 active:bg-sidebar-accent active:text-sidebar-accent-foreground disabled:pointer-events-none disabled:opacity-50 aria-disabled:pointer-events-none aria-disabled:opacity-50 [&>span:last-child]:truncate [&>svg]:size-4 [&>svg]:shrink-0 [&>svg]:text-sidebar-accent-foreground",
+      "data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground",
+      size === "sm" && "text-xs",
+      size === "md" && "text-sm",
+      "group-data-[collapsible=icon]:hidden",
+      className
+    ),
+    ...props
+  };
+
+  if (asChild) {
+    RenderComp = Slot;
+  } else if (href) {
+    RenderComp = NextLink;
+    componentProps.href = href;
+  }
+  
+  if (RenderComp === "button" && componentProps.href) {
+      delete componentProps.href;
+  }
 
   return (
-    <Comp
-      ref={ref}
-      data-sidebar="menu-sub-button"
-      data-size={size}
-      data-active={isActive}
-      className={cn(
-        "flex h-7 min-w-0 -translate-x-px items-center gap-2 overflow-hidden rounded-md px-2 text-sidebar-foreground outline-none ring-sidebar-ring hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 active:bg-sidebar-accent active:text-sidebar-accent-foreground disabled:pointer-events-none disabled:opacity-50 aria-disabled:pointer-events-none aria-disabled:opacity-50 [&>span:last-child]:truncate [&>svg]:size-4 [&>svg]:shrink-0 [&>svg]:text-sidebar-accent-foreground",
-        "data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground",
-        size === "sm" && "text-xs",
-        size === "md" && "text-sm",
-        "group-data-[collapsible=icon]:hidden",
-        className
-      )}
-      {...props}
-    />
-  )
+    <RenderComp {...componentProps}>
+      {children}
+    </RenderComp>
+  );
 })
 SidebarMenuSubButton.displayName = "SidebarMenuSubButton"
 
@@ -761,3 +806,5 @@ export {
   SidebarTrigger,
   useSidebar,
 }
+
+    
