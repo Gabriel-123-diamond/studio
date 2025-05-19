@@ -42,6 +42,13 @@ export default function AppDashboardPage() {
     }
   };
 
+  // Define role booleans locally
+  const isManager = currentUserRole === UserRole.MANAGER;
+  const isSupervisor = currentUserRole === UserRole.SUPERVISOR;
+  const isStaff = currentUserRole === UserRole.STAFF;
+  const isDeveloper = currentUserRole === UserRole.DEVELOPER;
+
+
   if (isLoadingRole) {
     return (
       <div className="w-full">
@@ -82,7 +89,7 @@ export default function AppDashboardPage() {
           <p>This is the main content area. Your role-specific widgets and components will appear here.</p>
           
           {/* Placeholder content based on role, can be expanded */}
-          {currentUserRole === UserRole.MANAGER && (
+          {(isManager || isDeveloper) && ( // Developer also sees Manager dashboard items
             <div className="mt-8 grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
               <Card className="shadow-md">
                 <CardHeader><CardTitle className="text-xl">Team Performance</CardTitle></CardHeader>
@@ -99,7 +106,7 @@ export default function AppDashboardPage() {
             </div>
           )}
 
-          {currentUserRole === UserRole.SUPERVISOR && (
+          {isSupervisor && (
             <div className="mt-8 grid grid-cols-1 gap-6 md:grid-cols-2">
               <Card className="shadow-md">
                 <CardHeader><CardTitle className="text-xl">Department Tasks</CardTitle></CardHeader>
@@ -112,7 +119,7 @@ export default function AppDashboardPage() {
             </div>
           )}
 
-          {currentUserRole === UserRole.STAFF && (
+          {isStaff && (
              <div className="mt-8">
               <Card className="shadow-md">
                 <CardHeader><CardTitle className="text-xl">Your Active Tasks</CardTitle></CardHeader>
@@ -121,7 +128,7 @@ export default function AppDashboardPage() {
             </div>
           )}
 
-          { (currentUserRole === UserRole.NONE || (!isManager && !isSupervisor && !isStaff && currentUserRole !== UserRole.DEVELOPER)) && (
+          { (currentUserRole === UserRole.NONE || (!isManager && !isSupervisor && !isStaff && !isDeveloper)) && (
              <div className="mt-8 text-center text-muted-foreground">
                 <p>No specific dashboard view for your current role or role not identified.</p>
              </div>
