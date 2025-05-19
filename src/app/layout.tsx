@@ -42,7 +42,10 @@ export default function RootLayout({
         <title>Meal Villa</title>
         <meta name="description" content="Your personalized culinary journey." />
       </head>
-      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
+      <body 
+        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        suppressHydrationWarning={true}
+      >
         {children}
         {isClient && <Toaster />} {/* Modified to render Toaster only on client */}
       </body>
