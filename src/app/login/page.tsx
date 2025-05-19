@@ -5,8 +5,8 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
 import { useRouter } from "next/navigation";
-import { Lock, Badge, Eye, EyeOff } from "lucide-react"; // Added Badge, Eye, EyeOff
-import React, { useState } from "react"; // Added useState
+import { Lock, Badge, Eye, EyeOff, UserCircle } from "lucide-react"; // Added UserCircle
+import React, { useState, useEffect } from "react"; 
 
 import { Button } from "@/components/ui/button";
 import {
@@ -21,6 +21,22 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
+// Define roles
+enum UserRole {
+  MANAGER = "manager",
+  SUPERVISOR = "supervisor",
+  STAFF = "staff",
+  DEVELOPER = "developer", // SuperAdmin effectively
+}
+
+// Hardcoded users for simulation
+const mockUsers: Record<string, { passwordPlain: string; role: UserRole }> = {
+  "111111": { passwordPlain: "password", role: UserRole.MANAGER },
+  "222222": { passwordPlain: "password", role: UserRole.SUPERVISOR },
+  "333333": { passwordPlain: "password", role: UserRole.STAFF }, // e.g., Baker
+  "000000": { passwordPlain: "superpassword", role: UserRole.DEVELOPER },
+};
+
 const loginFormSchema = z.object({
   staffId: z.string().regex(/^\d{6}$/, { message: "Staff ID must be exactly 6 digits." }),
   password: z.string().min(6, { message: "Password must be at least 6 characters." }),
@@ -33,6 +49,16 @@ export default function LoginPage() {
   const { toast } = useToast();
   const [showPassword, setShowPassword] = useState(false);
 
+  // Redirect if already logged in
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const storedRole = localStorage.getItem("userRole");
+      if (storedRole) {
+        router.push("/app-dashboard");
+      }
+    }
+  }, [router]);
+
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(loginFormSchema),
     defaultValues: {
@@ -42,21 +68,35 @@ export default function LoginPage() {
   });
 
   async function onSubmit(values: LoginFormValues) {
-    // Simulate API call
+    // Simulate API call & role check
     await new Promise((resolve) => setTimeout(resolve, 1000));
 
-    console.log("Login submitted with:", values);
-    
-    toast({
-      title: "Login Successful!",
-      description: "Welcome back to Meal Villa.",
-      variant: "default",
-    });
+    const user = mockUsers[values.staffId];
 
-    // Wait for toast to be visible before navigating
-    setTimeout(() => {
-      router.push("/dashboard");
-    }, 1500);
+    if (user && user.passwordPlain === values.password) {
+      if (typeof window !== 'undefined') {
+        localStorage.setItem("userRole", user.role);
+        localStorage.setItem("staffId", values.staffId); // Optionally store staffId
+      }
+      
+      toast({
+        title: "Login Successful!",
+        description: `Welcome back! Role: ${user.role.toUpperCase()}`,
+        variant: "default",
+      });
+
+      // Wait for toast to be visible before navigating
+      setTimeout(() => {
+        router.push("/app-dashboard"); // All roles go to app-dashboard, layout handles view
+      }, 1500);
+    } else {
+      toast({
+        title: "Login Failed",
+        description: "Invalid Staff ID or Password.",
+        variant: "destructive",
+      });
+      form.reset(); // Clear form on failed login
+    }
   }
 
   return (
@@ -65,7 +105,7 @@ export default function LoginPage() {
       <Card className="w-full max-w-md shadow-xl">
         <CardHeader className="text-center">
           <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-primary text-primary-foreground">
-            <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-utensils-crossed"><path d="m16 2-2.3 2.3a3 3 0 0 0 0 4.2l1.8 1.8a3 3 0 0 0 4.2 0L22 8Z"/><path d="M15 15 3.3 3.3a4.2 4.2 0 0 0 0 6l7.3 7.3c.7.7 2 .7 2.8 0L15 15Zm0 0 7 7"/><path d="m2.1 2.1 6.4 6.4"/><path d="m19.5 19.5-6.4-6.4"/></svg>
+            <UserCircle className="h-10 w-10" />
           </div>
           <CardTitle className="text-3xl font-bold text-primary">Meal Villa</CardTitle>
           <CardDescription>Sign in to access your culinary world.</CardDescription>
@@ -109,7 +149,7 @@ export default function LoginPage() {
                           type={showPassword ? "text" : "password"} 
                           placeholder="••••••••" 
                           {...field} 
-                          className="pl-10 pr-10" // Added pr-10 for the button
+                          className="pl-10 pr-10" 
                           aria-label="Password"
                         />
                         <Button

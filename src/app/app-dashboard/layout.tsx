@@ -3,8 +3,14 @@
 
 import type { ReactNode } from 'react';
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation'; // Added usePathname
-import { Home, Settings, User, LogOut, MenuSquare, Bell, Palette, KeyRound } from 'lucide-react'; // Added Bell, Palette, KeyRound for icons
+import { usePathname, useRouter } from 'next/navigation';
+import React, { useEffect, useState } from 'react';
+import { 
+  Home, Settings, User, LogOut, MenuSquare, 
+  UsersCog, CheckCircle, Users, LineChart, History, // Manager icons
+  UserCog, Send, UserEdit, ListChecks, // Supervisor icons (UserCog also for Manager's Role Management)
+  ClipboardList, BellIcon as Bell, Palette, KeyRound, Shield // Staff icons (Bell, Palette, KeyRound are generic)
+} from 'lucide-react';
 
 import {
   SidebarProvider,
@@ -15,32 +21,88 @@ import {
   SidebarMenu,
   SidebarMenuItem,
   SidebarMenuButton,
-  // SidebarMenuSub, // Removed as we are not using submenus for now
-  // SidebarMenuSubItem,
-  // SidebarMenuSubButton,
   SidebarTrigger,
   SidebarInset,
 } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Skeleton } from '@/components/ui/skeleton';
+
+
+enum UserRole {
+  MANAGER = "manager",
+  SUPERVISOR = "supervisor",
+  STAFF = "staff",
+  DEVELOPER = "developer",
+  NONE = "none",
+}
 
 // Helper function to determine the page title
 const getPageTitle = (pathname: string): string => {
   if (pathname === '/app-dashboard') return 'Dashboard';
   if (pathname === '/app-dashboard/profile') return 'Profile';
   if (pathname === '/app-dashboard/settings') return 'Settings';
+  if (pathname === '/app-dashboard/role-management') return 'Role Management';
+  if (pathname === '/app-dashboard/staff-management') return 'Staff Management';
+  if (pathname === '/app-dashboard/approval-requests') return 'Approval Requests';
+  if (pathname === '/app-dashboard/activity-overview') return 'Activity Overview';
+  if (pathname === '/app-dashboard/audit-trail') return 'Audit Trail';
+  if (pathname === '/app-dashboard/my-tasks') return 'My Tasks';
+  if (pathname === '/app-dashboard/notifications') return 'Notifications';
   return 'Meal Villa'; // Default title
 };
 
 export default function AppDashboardLayout({ children }: { children: ReactNode }) {
   const router = useRouter();
-  const pathname = usePathname(); // Get current path
-  const pageTitle = getPageTitle(pathname); // Get dynamic page title
+  const pathname = usePathname();
+  const [currentUserRole, setCurrentUserRole] = useState<UserRole>(UserRole.NONE);
+  const [staffId, setStaffId] = useState<string | null>(null);
+  const [isLoadingRole, setIsLoadingRole] = useState(true);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const storedRole = localStorage.getItem("userRole") as UserRole | null;
+      const storedStaffId = localStorage.getItem("staffId");
+      if (storedRole) {
+        setCurrentUserRole(storedRole);
+        if (storedStaffId) setStaffId(storedStaffId);
+      } else {
+        router.push('/login'); // Redirect if no role
+      }
+      setIsLoadingRole(false);
+    }
+  }, [router]);
 
   const handleLogout = () => {
-    // Add any logout logic here (e.g., clearing session, tokens)
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem("userRole");
+      localStorage.removeItem("staffId");
+    }
     router.push('/login');
   };
+
+  const pageTitle = getPageTitle(pathname);
+
+  if (isLoadingRole) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <div className="flex flex-col items-center space-y-4">
+          <Skeleton className="h-12 w-12 rounded-full" />
+          <Skeleton className="h-4 w-[250px]" />
+          <Skeleton className="h-4 w-[200px]" />
+        </div>
+      </div>
+    );
+  }
+  
+  const isManager = currentUserRole === UserRole.MANAGER || currentUserRole === UserRole.DEVELOPER;
+  const isSupervisor = currentUserRole === UserRole.SUPERVISOR;
+  const isStaff = currentUserRole === UserRole.STAFF;
+
+
+  const userEmail = staffId ? `${staffId}@mealvilla.com` : "user@mealvilla.com";
+  const userName = currentUserRole !== UserRole.NONE ? `${currentUserRole.charAt(0).toUpperCase() + currentUserRole.slice(1)} User` : "User";
+  const avatarFallback = userName.substring(0,2).toUpperCase();
 
   return (
     <SidebarProvider defaultOpen>
@@ -55,6 +117,7 @@ export default function AppDashboardLayout({ children }: { children: ReactNode }
 
           <SidebarContent className="flex-1 p-2">
             <SidebarMenu>
+              {/* Common Links */}
               <SidebarMenuItem>
                 <SidebarMenuButton href="/app-dashboard" tooltip="Home" isActive={pathname === '/app-dashboard'}>
                   <Home />
@@ -73,6 +136,93 @@ export default function AppDashboardLayout({ children }: { children: ReactNode }
                   <span>Settings</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
+
+              {/* Developer/Manager Specific Links */}
+              {(isManager) && (
+                <>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton href="/app-dashboard/role-management" tooltip="Role Management" isActive={pathname === '/app-dashboard/role-management'}>
+                      <UsersCog />
+                      <span>Role Management</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton href="/app-dashboard/staff-management" tooltip="Staff Management" isActive={pathname === '/app-dashboard/staff-management'}>
+                      <Users />
+                      <span>Staff Management</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton href="/app-dashboard/approval-requests" tooltip="Approval Requests" isActive={pathname === '/app-dashboard/approval-requests'}>
+                      <CheckCircle />
+                      <span>Approval Requests</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton href="/app-dashboard/activity-overview" tooltip="Activity Overview" isActive={pathname === '/app-dashboard/activity-overview'}>
+                      <LineChart />
+                      <span>Activity Overview</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton href="/app-dashboard/audit-trail" tooltip="Audit Trail" isActive={pathname === '/app-dashboard/audit-trail'}>
+                      <History />
+                      <span>Audit Trail</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                   {currentUserRole === UserRole.DEVELOPER && (
+                     <SidebarMenuItem>
+                       <SidebarMenuButton href="/app-dashboard/dev-tools" tooltip="Developer Tools" isActive={pathname === '/app-dashboard/dev-tools'}>
+                         <Shield />
+                         <span>Dev Tools</span>
+                       </SidebarMenuButton>
+                     </SidebarMenuItem>
+                   )}
+                </>
+              )}
+
+              {/* Supervisor Specific Links */}
+              {isSupervisor && (
+                <>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton href="/app-dashboard/staff-management" tooltip="Manage Staff" isActive={pathname === '/app-dashboard/staff-management'}>
+                      <UserEdit />
+                      <span>Manage Staff</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton href="/app-dashboard/approval-requests" tooltip="Send Requests" isActive={pathname === '/app-dashboard/approval-requests'}>
+                      <Send />
+                      <span>Send Requests</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton href="/app-dashboard/activity-tracking" tooltip="Activity Tracking" isActive={pathname === '/app-dashboard/activity-tracking'}>
+                      <ListChecks />
+                      <span>Activity Tracking</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                </>
+              )}
+              
+              {/* Staff Specific Links */}
+              {isStaff && (
+                <>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton href="/app-dashboard/my-tasks" tooltip="My Tasks" isActive={pathname === '/app-dashboard/my-tasks'}>
+                      <ClipboardList />
+                      <span>My Tasks</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton href="/app-dashboard/notifications" tooltip="Notifications" isActive={pathname === '/app-dashboard/notifications'}>
+                      <Bell />
+                      <span>Notifications</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                </>
+              )}
+
             </SidebarMenu>
           </SidebarContent>
 
@@ -80,11 +230,11 @@ export default function AppDashboardLayout({ children }: { children: ReactNode }
             <div className="flex items-center gap-3 group-data-[collapsible=icon]:justify-center">
               <Avatar className="h-9 w-9 group-data-[collapsible=icon]:h-7 group-data-[collapsible=icon]:w-7">
                 <AvatarImage src="https://placehold.co/100x100.png" alt="User Avatar" data-ai-hint="user avatar" />
-                <AvatarFallback>MV</AvatarFallback>
+                <AvatarFallback>{avatarFallback}</AvatarFallback>
               </Avatar>
               <div className="group-data-[collapsible=icon]:hidden">
-                <p className="text-sm font-medium">Staff User</p>
-                <p className="text-xs text-muted-foreground">staff@mealvilla.com</p>
+                <p className="text-sm font-medium">{userName}</p>
+                <p className="text-xs text-muted-foreground">{userEmail}</p>
               </div>
             </div>
           </SidebarFooter>
@@ -93,8 +243,8 @@ export default function AppDashboardLayout({ children }: { children: ReactNode }
         <SidebarInset className="flex flex-col flex-1">
           <header className="sticky top-0 z-10 flex h-14 items-center justify-between border-b bg-background/95 px-4 shadow-sm backdrop-blur-sm">
             <div className="flex items-center">
-              <SidebarTrigger className="mr-2 md:hidden" /> {/* Hidden on md and up where sidebar rail is visible */}
-               <h1 className="text-lg font-semibold text-foreground">{pageTitle}</h1> {/* Dynamic Page Title */}
+              <SidebarTrigger className="mr-2 md:hidden" /> 
+              <h1 className="text-lg font-semibold text-foreground">{pageTitle}</h1>
             </div>
             <Button variant="outline" size="sm" onClick={handleLogout} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
               <LogOut className="mr-2 h-4 w-4" />
