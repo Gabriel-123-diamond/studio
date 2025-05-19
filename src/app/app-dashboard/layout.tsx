@@ -3,8 +3,8 @@
 
 import type { ReactNode } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { Home, Settings, User, LogOut, MenuSquare } from 'lucide-react';
+import { usePathname, useRouter } from 'next/navigation'; // Added usePathname
+import { Home, Settings, User, LogOut, MenuSquare, Bell, Palette, KeyRound } from 'lucide-react'; // Added Bell, Palette, KeyRound for icons
 
 import {
   SidebarProvider,
@@ -15,17 +15,27 @@ import {
   SidebarMenu,
   SidebarMenuItem,
   SidebarMenuButton,
-  SidebarMenuSub,
-  SidebarMenuSubItem,
-  SidebarMenuSubButton,
+  // SidebarMenuSub, // Removed as we are not using submenus for now
+  // SidebarMenuSubItem,
+  // SidebarMenuSubButton,
   SidebarTrigger,
   SidebarInset,
 } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
+// Helper function to determine the page title
+const getPageTitle = (pathname: string): string => {
+  if (pathname === '/app-dashboard') return 'Dashboard';
+  if (pathname === '/app-dashboard/profile') return 'Profile';
+  if (pathname === '/app-dashboard/settings') return 'Settings';
+  return 'Meal Villa'; // Default title
+};
+
 export default function AppDashboardLayout({ children }: { children: ReactNode }) {
   const router = useRouter();
+  const pathname = usePathname(); // Get current path
+  const pageTitle = getPageTitle(pathname); // Get dynamic page title
 
   const handleLogout = () => {
     // Add any logout logic here (e.g., clearing session, tokens)
@@ -46,35 +56,22 @@ export default function AppDashboardLayout({ children }: { children: ReactNode }
           <SidebarContent className="flex-1 p-2">
             <SidebarMenu>
               <SidebarMenuItem>
-                <SidebarMenuButton href="/app-dashboard" tooltip="Home">
+                <SidebarMenuButton href="/app-dashboard" tooltip="Home" isActive={pathname === '/app-dashboard'}>
                   <Home />
                   <span>Home</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
               <SidebarMenuItem>
-                <SidebarMenuButton href="/app-dashboard/profile" tooltip="Profile">
+                <SidebarMenuButton href="/app-dashboard/profile" tooltip="Profile" isActive={pathname === '/app-dashboard/profile'}>
                   <User />
                   <span>Profile</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
               <SidebarMenuItem>
-                <SidebarMenuButton tooltip="Settings" data-state="closed"> {/* Add data-state for sub-menu handling if needed */}
+                <SidebarMenuButton href="/app-dashboard/settings" tooltip="Settings" isActive={pathname === '/app-dashboard/settings'}>
                   <Settings />
                   <span>Settings</span>
                 </SidebarMenuButton>
-                {/* Example Submenu - can be expanded later */}
-                {/* <SidebarMenuSub>
-                  <SidebarMenuSubItem>
-                    <SidebarMenuSubButton href="/app-dashboard/settings/account">
-                      Account
-                    </SidebarMenuSubButton>
-                  </SidebarMenuSubItem>
-                  <SidebarMenuSubItem>
-                    <SidebarMenuSubButton href="/app-dashboard/settings/preferences">
-                      Preferences
-                    </SidebarMenuSubButton>
-                  </SidebarMenuSubItem>
-                </SidebarMenuSub> */}
               </SidebarMenuItem>
             </SidebarMenu>
           </SidebarContent>
@@ -97,7 +94,7 @@ export default function AppDashboardLayout({ children }: { children: ReactNode }
           <header className="sticky top-0 z-10 flex h-14 items-center justify-between border-b bg-background/95 px-4 shadow-sm backdrop-blur-sm">
             <div className="flex items-center">
               <SidebarTrigger className="mr-2 md:hidden" /> {/* Hidden on md and up where sidebar rail is visible */}
-               <h1 className="text-lg font-semibold text-foreground">Dashboard</h1>
+               <h1 className="text-lg font-semibold text-foreground">{pageTitle}</h1> {/* Dynamic Page Title */}
             </div>
             <Button variant="outline" size="sm" onClick={handleLogout} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
               <LogOut className="mr-2 h-4 w-4" />
