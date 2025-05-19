@@ -7,9 +7,9 @@ import { usePathname, useRouter } from 'next/navigation';
 import React, { useEffect, useState } from 'react';
 import { 
   Home, Settings, User, LogOut, MenuSquare, 
-  UsersCog, CheckCircle, Users, LineChart, History, // Manager icons
-  UserCog, Send, UserEdit, ListChecks, // Supervisor icons (UserCog also for Manager's Role Management)
-  ClipboardList, BellIcon as Bell, Palette, KeyRound, Shield // Staff icons (Bell, Palette, KeyRound are generic)
+  CheckCircle, Users, LineChart, History, // Manager icons
+  UserCog, Send, ListChecks, // Supervisor icons
+  ClipboardList, Bell as BellIcon, Palette, KeyRound, Shield // Staff icons (Bell, Palette, KeyRound are generic)
 } from 'lucide-react';
 
 import {
@@ -49,6 +49,8 @@ const getPageTitle = (pathname: string): string => {
   if (pathname === '/app-dashboard/audit-trail') return 'Audit Trail';
   if (pathname === '/app-dashboard/my-tasks') return 'My Tasks';
   if (pathname === '/app-dashboard/notifications') return 'Notifications';
+  if (pathname === '/app-dashboard/activity-tracking') return 'Activity Tracking';
+  if (pathname === '/app-dashboard/dev-tools') return 'Developer Tools';
   return 'Meal Villa'; // Default title
 };
 
@@ -142,7 +144,7 @@ export default function AppDashboardLayout({ children }: { children: ReactNode }
                 <>
                   <SidebarMenuItem>
                     <SidebarMenuButton href="/app-dashboard/role-management" tooltip="Role Management" isActive={pathname === '/app-dashboard/role-management'}>
-                      <UsersCog />
+                      <Users /> 
                       <span>Role Management</span>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
@@ -186,7 +188,7 @@ export default function AppDashboardLayout({ children }: { children: ReactNode }
                 <>
                   <SidebarMenuItem>
                     <SidebarMenuButton href="/app-dashboard/staff-management" tooltip="Manage Staff" isActive={pathname === '/app-dashboard/staff-management'}>
-                      <UserEdit />
+                      <UserCog />
                       <span>Manage Staff</span>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
@@ -216,7 +218,7 @@ export default function AppDashboardLayout({ children }: { children: ReactNode }
                   </SidebarMenuItem>
                   <SidebarMenuItem>
                     <SidebarMenuButton href="/app-dashboard/notifications" tooltip="Notifications" isActive={pathname === '/app-dashboard/notifications'}>
-                      <Bell />
+                      <BellIcon />
                       <span>Notifications</span>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
