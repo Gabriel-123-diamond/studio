@@ -15,14 +15,14 @@ export default function DashboardPage() {
         </CardHeader>
         <CardContent className="mt-6">
           <p className="mb-8 text-foreground/90">
-            This is your dashboard. Explore recipes, plan your meals, and discover new flavors.
+            This is your intermediate dashboard. Explore recipes, plan your meals, and discover new flavors.
           </p>
           <div className="flex justify-center space-x-4">
             <Button asChild variant="outline" className="bg-accent text-accent-foreground hover:bg-accent/90">
               <Link href="/login">Back to Login</Link>
             </Button>
             <Button asChild className="bg-primary text-primary-foreground hover:bg-primary/90">
-              <Link href="/dashboard">Proceed to Dashboard</Link>
+              <Link href="/app-dashboard">Proceed to App Dashboard</Link>
             </Button>
           </div>
         </CardContent>
@@ -30,4 +30,3 @@ export default function DashboardPage() {
     </div>
   );
 }
-
