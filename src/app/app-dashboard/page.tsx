@@ -4,11 +4,6 @@
 import React, { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from '@/components/ui/skeleton';
-// Firebase imports removed
-// import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
-// import { doc, getDoc } from 'firebase/firestore';
-// import { auth, db } from '@/lib/firebase';
-
 
 enum UserRole {
   MANAGER = "manager",
@@ -28,11 +23,10 @@ export default function AppDashboardPage() {
     if (roleFromStorage) {
       setCurrentUserRole(roleFromStorage);
     } else {
-      setCurrentUserRole(UserRole.NONE); // Should be redirected by layout if no role
+      setCurrentUserRole(UserRole.NONE); 
     }
     setIsLoadingRole(false);
   }, []);
-
 
   const getWelcomeMessage = () => {
     switch (currentUserRole) {
@@ -133,7 +127,7 @@ export default function AppDashboardPage() {
             </div>
           )}
 
-           {(currentUserRole === UserRole.NONE && !isLoadingRole) && (
+           {(currentUserRole === UserRole.NONE || (!isManager && !isSupervisor && !isStaff && !isDeveloper)) && !isLoadingRole && (
              <div className="mt-8 p-8 border border-dashed border-destructive/50 rounded-lg text-center bg-destructive/10">
                 <p className="text-lg font-semibold text-destructive">Access Issue</p>
                 <p className="text-destructive-foreground">No specific dashboard view for your current role, or your role could not be identified.</p>

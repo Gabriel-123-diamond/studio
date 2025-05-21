@@ -5,16 +5,10 @@ import React, { useEffect, useState } from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-// Input import removed as it's not used directly in this simplified version
-// import { Input } from "@/components/ui/input"; 
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Edit3, UserCircle, Briefcase, Building, Mail, ShieldCheck } from "lucide-react";
 import { Skeleton } from '@/components/ui/skeleton';
-// Firebase imports removed
-// import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
-// import { doc, getDoc } from 'firebase/firestore';
-// import { auth, db } from '@/lib/firebase';
 
 interface UserProfileData {
   name: string;
@@ -26,12 +20,11 @@ interface UserProfileData {
   bio: string;
 }
 
-// Mock role to department mapping
 const mockRoleDepartmentMap: { [key: string]: string } = {
   manager: "Management",
   supervisor: "Operations",
   developer: "IT/Development",
-  staff: "General Staff", // Default for generic staff role
+  staff: "General Staff", 
   baker: "Bakery",
   storekeeper: "Store",
   accountant: "Finance",
@@ -49,7 +42,6 @@ export default function ProfilePage() {
     const roleFromStorage = localStorage.getItem("userRole");
 
     if (staffIdFromStorage && roleFromStorage) {
-      // Simulate fetching profile data
       const mockName = `${roleFromStorage.charAt(0).toUpperCase() + roleFromStorage.slice(1)} User`;
       const mockEmail = `${staffIdFromStorage}@mealvilla.com`;
       const mockDepartment = mockRoleDepartmentMap[roleFromStorage.toLowerCase()] || "General";
@@ -64,7 +56,7 @@ export default function ProfilePage() {
         bio: `A dedicated ${roleFromStorage} at Meal Villa. Staff ID: ${staffIdFromStorage}.`,
       });
     } else {
-      setUserProfile(null); // Or a default error profile
+      setUserProfile(null); 
     }
     setIsLoading(false);
   }, []);

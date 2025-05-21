@@ -11,10 +11,6 @@ import {
   UserCog, Send, ListChecks, // Supervisor icons
   ClipboardList, Bell as BellIcon, Palette, KeyRound, Shield // Staff icons & generic
 } from 'lucide-react';
-// Firebase imports removed
-// import { onAuthStateChanged, signOut, User as FirebaseUser } from 'firebase/auth';
-// import { doc, getDoc } from 'firebase/firestore';
-// import { auth, db } from '@/lib/firebase';
 
 import {
   SidebarProvider,
@@ -62,7 +58,6 @@ export default function AppDashboardLayout({ children }: { children: ReactNode }
   const { toast } = useToast();
   const [currentUserRole, setCurrentUserRole] = useState<UserRole>(UserRole.NONE);
   const [staffId, setStaffId] = useState<string | null>(null);
-  // FirebaseUser state removed: const [authUser, setAuthUser] = useState<FirebaseUser | null>(null);
   const [isLoadingRole, setIsLoadingRole] = useState(true);
 
   useEffect(() => {
@@ -76,7 +71,7 @@ export default function AppDashboardLayout({ children }: { children: ReactNode }
     } else {
       setCurrentUserRole(UserRole.NONE);
       setStaffId(null);
-      router.push('/login'); // Redirect if no role/staffId in localStorage
+      router.push('/login'); 
     }
     setIsLoadingRole(false);
   }, [router]);
@@ -84,7 +79,6 @@ export default function AppDashboardLayout({ children }: { children: ReactNode }
   const handleLogout = () => {
     localStorage.removeItem("userRole");
     localStorage.removeItem("staffId");
-    // localStorage.removeItem("authUser"); // If it was ever set
     setCurrentUserRole(UserRole.NONE);
     setStaffId(null);
     toast({title: "Logged Out", description: "You have been successfully logged out."});
@@ -111,7 +105,6 @@ export default function AppDashboardLayout({ children }: { children: ReactNode }
   const isStaff = currentUserRole === UserRole.STAFF;
   const isDeveloper = currentUserRole === UserRole.DEVELOPER;
 
-  // Using staffId for email and name display as per pre-Firebase logic
   const userEmailDisplay = staffId ? `${staffId}@mealvilla.com` : "user@mealvilla.com";
   const userNameDisplay = currentUserRole !== UserRole.NONE 
     ? `${currentUserRole.charAt(0).toUpperCase() + currentUserRole.slice(1)} User (ID: ${staffId || 'N/A'})` 

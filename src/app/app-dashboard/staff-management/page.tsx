@@ -4,10 +4,6 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Users } from "lucide-react";
 import React, { useEffect, useState } from 'react';
-// Firebase imports removed
-// import { onAuthStateChanged } from 'firebase/auth';
-// import { doc, getDoc } from 'firebase/firestore';
-// import { auth, db } from '@/lib/firebase';
 import { Skeleton } from "@/components/ui/skeleton";
 
 enum UserRole {
@@ -28,7 +24,7 @@ export default function StaffManagementPage() {
     if (roleFromStorage) {
       setCurrentUserRole(roleFromStorage);
     } else {
-      setCurrentUserRole(UserRole.NONE); // Should be redirected by layout
+      setCurrentUserRole(UserRole.NONE); 
     }
     setIsLoading(false);
   }, []);

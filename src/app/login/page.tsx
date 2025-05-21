@@ -7,8 +7,6 @@ import * as z from "zod";
 import { useRouter } from "next/navigation";
 import { Lock, Badge, Eye, EyeOff, UserCircle } from "lucide-react";
 import React, { useState, useEffect } from "react";
-// Firebase Auth import removed: import { signInWithEmailAndPassword } from "firebase/auth";
-// Firebase lib import removed: import { auth } from "@/lib/firebase"; 
 
 import { Button } from "@/components/ui/button";
 import {
@@ -30,7 +28,6 @@ const loginFormSchema = z.object({
 
 type LoginFormValues = z.infer<typeof loginFormSchema>;
 
-// Reinstating UserRole enum for mock login
 enum UserRole {
   MANAGER = "manager",
   SUPERVISOR = "supervisor",
@@ -39,7 +36,6 @@ enum UserRole {
   NONE = "none",
 }
 
-// Mock user data - this was the pre-Firebase structure
 const mockUsers: { [key: string]: { role: UserRole, password?: string } } = {
   "111111": { role: UserRole.MANAGER, password: "password" }, 
   "222222": { role: UserRole.SUPERVISOR, password: "password" },
@@ -53,7 +49,6 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
 
   useEffect(() => {
-    // Check if user is already "logged in" via localStorage
     const storedRole = localStorage.getItem("userRole");
     if (storedRole && storedRole !== UserRole.NONE) {
       router.push("/app-dashboard");
@@ -75,7 +70,7 @@ export default function LoginPage() {
 
     if (userDetails && userDetails.password === password) {
       localStorage.setItem("userRole", userDetails.role);
-      localStorage.setItem("staffId", staffId); // Store staffId
+      localStorage.setItem("staffId", staffId); 
 
       toast({
         title: "Login Successful!",
@@ -85,7 +80,6 @@ export default function LoginPage() {
       router.push("/app-dashboard");
     } else {
       let errorMessage = "Invalid Staff ID or Password.";
-      // Add more specific error messages for mock users if needed
       toast({
         title: "Login Failed",
         description: errorMessage,
