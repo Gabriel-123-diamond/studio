@@ -9,6 +9,9 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Edit3, UserCircle, Briefcase, Building, Mail, ShieldCheck } from "lucide-react";
 import { Skeleton } from '@/components/ui/skeleton';
+import { auth, db } from "@/lib/firebase";
+import { doc, getDoc } from "firebase/firestore";
+import type { User as FirebaseUser } from "firebase/auth";
 
 interface UserProfileData {
   name: string;
@@ -25,7 +28,7 @@ const mockRoleDepartmentMap: { [key: string]: string } = {
   supervisor: "Operations",
   developer: "IT/Development",
   staff: "General Staff", 
-  baker: "Bakery",
+  baker: "Bakery", // Example specific staff roles
   storekeeper: "Store",
   accountant: "Finance",
   sales: "Sales",
@@ -35,30 +38,45 @@ const mockRoleDepartmentMap: { [key: string]: string } = {
 export default function ProfilePage() {
   const [userProfile, setUserProfile] = useState<UserProfileData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
 
   useEffect(() => {
-    setIsLoading(true);
-    const staffIdFromStorage = localStorage.getItem("staffId");
-    const roleFromStorage = localStorage.getItem("userRole");
+    const unsubscribe = auth.onAuthStateChanged(async (user) => {
+      if (user) {
+        setFirebaseUser(user);
+        try {
+          const userDocRef = doc(db, "users", user.uid);
+          const userDocSnap = await getDoc(userDocRef);
 
-    if (staffIdFromStorage && roleFromStorage) {
-      const mockName = `${roleFromStorage.charAt(0).toUpperCase() + roleFromStorage.slice(1)} User`;
-      const mockEmail = `${staffIdFromStorage}@mealvilla.com`;
-      const mockDepartment = mockRoleDepartmentMap[roleFromStorage.toLowerCase()] || "General";
+          if (userDocSnap.exists()) {
+            const userData = userDocSnap.data();
+            const role = userData.role || "staff"; // Default to staff if role not set
+            const staffId = userData.staffId || "N/A";
+            const userEmail = user.email || `${staffId}@mealvilla.com`;
 
-      setUserProfile({
-        name: mockName,
-        staffId: staffIdFromStorage,
-        email: mockEmail,
-        role: roleFromStorage,
-        department: mockDepartment,
-        avatarUrl: "https://placehold.co/150x150.png",
-        bio: `A dedicated ${roleFromStorage} at Meal Villa. Staff ID: ${staffIdFromStorage}.`,
-      });
-    } else {
-      setUserProfile(null); 
-    }
-    setIsLoading(false);
+            const profileData: UserProfileData = {
+              name: userData.name || `${role.charAt(0).toUpperCase() + role.slice(1)} User`,
+              staffId: staffId,
+              email: userEmail,
+              role: role,
+              department: mockRoleDepartmentMap[role.toLowerCase()] || "General",
+              avatarUrl: userData.avatarUrl || "https://placehold.co/150x150.png",
+              bio: userData.bio || `A dedicated ${role} at Meal Villa. Staff ID: ${staffId}.`,
+            };
+            setUserProfile(profileData);
+          } else {
+            setUserProfile(null); // User doc not found
+          }
+        } catch (error) {
+          console.error("Error fetching user profile data:", error);
+          setUserProfile(null);
+        }
+      } else {
+        setUserProfile(null); // No user logged in
+      }
+      setIsLoading(false);
+    });
+    return () => unsubscribe();
   }, []);
 
   if (isLoading) {
@@ -101,7 +119,7 @@ export default function ProfilePage() {
             <Card className="shadow-lg rounded-lg">
                 <CardHeader className="bg-muted/30 p-6 rounded-t-lg">
                      <CardTitle className="text-3xl">Profile Not Available</CardTitle>
-                     <CardDescription>User profile could not be loaded. Please ensure you are logged in.</CardDescription>
+                     <CardDescription className="text-md">User profile could not be loaded. Please ensure you are logged in and your user data is correctly set up in Firestore.</CardDescription>
                 </CardHeader>
             </Card>
         </div>
@@ -129,7 +147,7 @@ export default function ProfilePage() {
                 <AvatarImage src={userProfile.avatarUrl} alt={userProfile.name} data-ai-hint="profile photo" />
                 <AvatarFallback>{avatarFallback}</AvatarFallback>
               </Avatar>
-              <Button variant="outline" size="sm" className="mt-4 w-full">
+              <Button variant="outline" size="sm" className="mt-4 w-full rounded-md">
                 <Edit3 className="mr-2 h-4 w-4" /> Change Photo
               </Button>
             </div>
@@ -175,7 +193,7 @@ export default function ProfilePage() {
           <Separator />
 
           <div className="flex justify-end">
-            <Button className="bg-primary text-primary-foreground hover:bg-primary/90">
+            <Button className="bg-primary text-primary-foreground hover:bg-primary/90 rounded-md">
               <Edit3 className="mr-2 h-4 w-4" />
               Edit Profile
             </Button>

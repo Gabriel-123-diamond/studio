@@ -6,7 +6,7 @@ import { ListChecks, Eye } from "lucide-react";
 
 export default function ActivityTrackingPage() {
   // This page is intended for Supervisors.
-  // Access control should be primarily handled by the layout based on role.
+  // Access control is handled by the layout based on role fetched from Firebase.
 
   return (
     <div className="w-full">
@@ -24,7 +24,7 @@ export default function ActivityTrackingPage() {
         </CardHeader>
         <CardContent className="p-6">
           <p className="text-lg">Supervisors can monitor daily activities, task completions, and operational logs from their staff and departments here.</p>
-          <p className="mt-2 text-muted-foreground">This will provide insights into team productivity, identify bottlenecks, and ensure tasks are progressing as expected.</p>
+          <p className="mt-2 text-muted-foreground">This will provide insights into team productivity, identify bottlenecks, and ensure tasks are progressing as expected. Data will be drawn from Firestore collections related to tasks and activities.</p>
           
           <div className="mt-8 p-8 border border-dashed border-muted-foreground/50 rounded-lg text-center">
             <div className="flex justify-center items-center mb-4">
@@ -32,7 +32,6 @@ export default function ActivityTrackingPage() {
             </div>
             <p className="text-xl font-semibold text-muted-foreground">Departmental Activity Dashboard</p>
             <p className="text-sm text-muted-foreground mt-2">Detailed activity feeds, task status summaries, and reporting tools will be implemented.</p>
-            {/* Placeholder for activity logs and tracking tools */}
           </div>
         </CardContent>
       </Card>

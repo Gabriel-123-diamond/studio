@@ -6,7 +6,7 @@ import { ClipboardList, CheckSquare } from "lucide-react";
 
 export default function MyTasksPage() {
   // This page is intended for Staff roles (Baker, Storekeeper, Accountant, Sales).
-  // Access control should be primarily handled by the layout based on role.
+  // Access control is handled by the layout based on role fetched from Firebase.
 
   return (
     <div className="w-full">
@@ -23,7 +23,7 @@ export default function MyTasksPage() {
           </div>
         </CardHeader>
         <CardContent className="p-6">
-          <p className="text-lg">This is your personal task board. Here you can see all tasks assigned to you by your Supervisor.</p>
+          <p className="text-lg">This is your personal task board. Here you can see all tasks assigned to you by your Supervisor, fetched from Firestore.</p>
           <p className="mt-2 text-muted-foreground">You'll be able to view task details, deadlines, and submit updates or mark tasks as completed.</p>
           
           <div className="mt-8 p-8 border border-dashed border-muted-foreground/50 rounded-lg text-center">

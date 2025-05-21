@@ -7,10 +7,13 @@ import { usePathname, useRouter } from 'next/navigation';
 import React, { useEffect, useState } from 'react';
 import { 
   Home, Settings, User, LogOut, MenuSquare, 
-  Users, CheckCircle, LineChart, History, // Manager icons (Users for Role Management)
+  Users, CheckCircle, LineChart, History, Shield, // Manager/Dev icons
   UserCog, Send, ListChecks, // Supervisor icons
-  ClipboardList, Bell as BellIcon, Palette, KeyRound, Shield // Staff icons & generic
+  ClipboardList, Bell as BellIcon // Staff icons
 } from 'lucide-react';
+import { auth, db } from "@/lib/firebase";
+import { onAuthStateChanged, signOut as firebaseSignOut, type User as FirebaseUser } from "firebase/auth";
+import { doc, getDoc } from "firebase/firestore";
 
 import {
   SidebarProvider,
@@ -58,36 +61,66 @@ export default function AppDashboardLayout({ children }: { children: ReactNode }
   const { toast } = useToast();
   const [currentUserRole, setCurrentUserRole] = useState<UserRole>(UserRole.NONE);
   const [staffId, setStaffId] = useState<string | null>(null);
-  const [isLoadingRole, setIsLoadingRole] = useState(true);
+  const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [isLoadingSession, setIsLoadingSession] = useState(true);
+  const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
 
   useEffect(() => {
-    setIsLoadingRole(true);
-    const roleFromStorage = localStorage.getItem("userRole") as UserRole | null;
-    const staffIdFromStorage = localStorage.getItem("staffId");
-
-    if (roleFromStorage && staffIdFromStorage) {
-      setCurrentUserRole(roleFromStorage);
-      setStaffId(staffIdFromStorage);
-    } else {
-      setCurrentUserRole(UserRole.NONE);
-      setStaffId(null);
-      router.push('/login'); 
-    }
-    setIsLoadingRole(false);
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        setFirebaseUser(user);
+        setUserEmail(user.email); // Get email from Firebase user
+        try {
+          const userDocRef = doc(db, "users", user.uid);
+          const userDocSnap = await getDoc(userDocRef);
+          if (userDocSnap.exists()) {
+            const userData = userDocSnap.data();
+            setCurrentUserRole(userData.role as UserRole || UserRole.NONE);
+            setStaffId(userData.staffId || null);
+          } else {
+            console.error("User document not found in Firestore for UID:", user.uid);
+            setCurrentUserRole(UserRole.NONE);
+            setStaffId(null);
+            // Optionally sign out user if Firestore doc is missing
+            // await firebaseSignOut(auth); 
+            // router.push('/login');
+          }
+        } catch (error) {
+          console.error("Error fetching user role from Firestore:", error);
+          setCurrentUserRole(UserRole.NONE);
+          setStaffId(null);
+          // toast({ title: "Error", description: "Could not fetch user details.", variant: "destructive" });
+        }
+      } else {
+        setCurrentUserRole(UserRole.NONE);
+        setStaffId(null);
+        setUserEmail(null);
+        setFirebaseUser(null);
+        router.push('/login');
+      }
+      setIsLoadingSession(false);
+    });
+    return () => unsubscribe();
   }, [router]);
 
-  const handleLogout = () => {
-    localStorage.removeItem("userRole");
-    localStorage.removeItem("staffId");
-    setCurrentUserRole(UserRole.NONE);
-    setStaffId(null);
-    toast({title: "Logged Out", description: "You have been successfully logged out."});
-    router.push('/login');
+  const handleLogout = async () => {
+    try {
+      await firebaseSignOut(auth);
+      setCurrentUserRole(UserRole.NONE);
+      setStaffId(null);
+      setUserEmail(null);
+      setFirebaseUser(null);
+      toast({title: "Logged Out", description: "You have been successfully logged out."});
+      router.push('/login');
+    } catch (error) {
+      console.error("Error signing out:", error);
+      toast({ title: "Logout Failed", description: "Could not sign out. Please try again.", variant: "destructive"});
+    }
   };
 
   const pageTitle = getPageTitle(pathname);
 
-  if (isLoadingRole) {
+  if (isLoadingSession) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
         <div className="flex flex-col items-center space-y-4">
@@ -105,10 +138,10 @@ export default function AppDashboardLayout({ children }: { children: ReactNode }
   const isStaff = currentUserRole === UserRole.STAFF;
   const isDeveloper = currentUserRole === UserRole.DEVELOPER;
 
-  const userEmailDisplay = staffId ? `${staffId}@mealvilla.com` : "user@mealvilla.com";
-  const userNameDisplay = currentUserRole !== UserRole.NONE 
-    ? `${currentUserRole.charAt(0).toUpperCase() + currentUserRole.slice(1)} User (ID: ${staffId || 'N/A'})` 
-    : "User";
+  const userEmailDisplay = userEmail || "user@mealvilla.com";
+  const userNameDisplay = staffId 
+    ? `${currentUserRole.charAt(0).toUpperCase() + currentUserRole.slice(1)} (ID: ${staffId})`
+    : firebaseUser ? `${currentUserRole.charAt(0).toUpperCase() + currentUserRole.slice(1)} User` : "User";
   const avatarFallback = userNameDisplay.substring(0,2).toUpperCase();
 
   return (
@@ -155,7 +188,7 @@ export default function AppDashboardLayout({ children }: { children: ReactNode }
                   </SidebarMenuItem>
                   <SidebarMenuItem>
                     <SidebarMenuButton href="/app-dashboard/staff-management" tooltip="Staff Management" isActive={pathname === '/app-dashboard/staff-management'}>
-                      <Users /> 
+                      <UserCog /> 
                       <span>Staff Management</span>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
@@ -192,9 +225,9 @@ export default function AppDashboardLayout({ children }: { children: ReactNode }
               {isSupervisor && (
                 <>
                   <SidebarMenuItem>
-                    <SidebarMenuButton href="/app-dashboard/staff-management" tooltip="Manage Staff" isActive={pathname === '/app-dashboard/staff-management'}>
+                    <SidebarMenuButton href="/app-dashboard/staff-management" tooltip="Manage My Staff" isActive={pathname === '/app-dashboard/staff-management'}>
                       <UserCog />
-                      <span>Manage Staff</span>
+                      <span>Manage My Staff</span>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                   <SidebarMenuItem>
@@ -223,7 +256,7 @@ export default function AppDashboardLayout({ children }: { children: ReactNode }
                   </SidebarMenuItem>
                   <SidebarMenuItem>
                     <SidebarMenuButton href="/app-dashboard/notifications" tooltip="Notifications" isActive={pathname === '/app-dashboard/notifications'}>
-                      <BellIcon /> {/* Using aliased BellIcon */}
+                      <BellIcon />
                       <span>Notifications</span>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
@@ -253,14 +286,30 @@ export default function AppDashboardLayout({ children }: { children: ReactNode }
               <SidebarTrigger className="mr-2 md:hidden" /> 
               <h1 className="text-lg font-semibold text-foreground">{pageTitle}</h1>
             </div>
-            <Button variant="outline" size="sm" onClick={handleLogout} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+            <Button variant="outline" size="sm" onClick={handleLogout} className="bg-destructive text-destructive-foreground hover:bg-destructive/90 rounded-md">
               <LogOut className="mr-2 h-4 w-4" />
               Logout
             </Button>
           </header>
 
           <main className="flex-1 overflow-y-auto p-6">
-            {children}
+            {currentUserRole !== UserRole.NONE ? children : 
+              (pathname === '/app-dashboard/profile' || pathname === '/app-dashboard/settings') ? children : null 
+              // Allow profile/settings even if role fetching fails, but other pages rely on role
+            }
+             {currentUserRole === UserRole.NONE && !(pathname === '/app-dashboard/profile' || pathname === '/app-dashboard/settings') && !isLoadingSession && (
+              <div className="w-full">
+                <Card className="shadow-lg rounded-lg">
+                  <CardHeader className="p-6 bg-muted/30 rounded-t-lg">
+                    <CardTitle className="text-2xl text-destructive">Access Denied or Session Error</CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-6">
+                    <p>Your user role could not be determined or you are not authorized to view this page.</p>
+                    <p>Please try logging out and logging back in. If the issue persists, contact an administrator.</p>
+                  </CardContent>
+                </Card>
+              </div>
+            )}
           </main>
         </SidebarInset>
       </div>

@@ -8,7 +8,7 @@ import { useToast } from "@/hooks/use-toast";
 
 export default function DevToolsPage() {
   // This page is intended for users with the Developer role.
-  // Access control should be primarily handled by the layout.
+  // Access control is handled by the layout based on role fetched from Firebase.
   const { toast } = useToast();
 
   const handleMockAction = (actionName: string) => {
@@ -35,7 +35,7 @@ export default function DevToolsPage() {
           </div>
         </CardHeader>
         <CardContent className="p-6 space-y-8">
-          <p className="text-lg">This area provides developers with special functionalities such as system configurations, direct data manipulation utilities, performance monitoring, and feature toggles.</p>
+          <p className="text-lg">This area provides developers with special functionalities such as system configurations, direct data manipulation utilities (e.g., Firestore interactions), performance monitoring, and feature toggles.</p>
           
           <section className="p-4 border rounded-lg shadow-sm">
             <h3 className="text-xl font-semibold mb-3 flex items-center"><Settings2 className="mr-2 h-5 w-5 text-primary"/> System Configuration</h3>
@@ -47,22 +47,22 @@ export default function DevToolsPage() {
                 <li>Feature Flag Management</li>
                 <li>Cache Control</li>
               </ul>
-               <Button variant="outline" size="sm" className="mt-3" onClick={() => handleMockAction("System Config Update")}>Update Config (Mock)</Button>
+               <Button variant="outline" size="sm" className="mt-3 rounded-md" onClick={() => handleMockAction("System Config Update")}>Update Config (Mock)</Button>
             </div>
           </section>
 
           <section className="p-4 border rounded-lg shadow-sm">
             <h3 className="text-xl font-semibold mb-3 flex items-center"><DatabaseZap className="mr-2 h-5 w-5 text-primary"/> Data Management Utilities</h3>
-            <p className="text-muted-foreground mb-4">Tools for direct database interaction, data seeding, or migration tasks. Use with extreme care as these actions can be destructive.</p>
+            <p className="text-muted-foreground mb-4">Tools for direct Firestore interaction, data seeding, or migration tasks. Use with extreme care as these actions can be destructive.</p>
             <div className="p-4 border border-dashed rounded-lg bg-muted/20">
               <p className="text-sm font-medium">Mock Data Utilities:</p>
               <ul className="list-disc list-inside text-xs text-muted-foreground mt-2">
-                <li>Seed Database (Users, Roles)</li>
+                <li>Seed Firestore (Users, Roles)</li>
                 <li>Clear Specific Collections</li>
                 <li>Run Data Migration Script</li>
               </ul>
-              <Button variant="destructive" size="sm" className="mt-3 mr-2" onClick={() => handleMockAction("Seed Database")}>Seed Data (Mock)</Button>
-              <Button variant="destructive" size="sm" className="mt-3" onClick={() => handleMockAction("Clear Cache")}>Clear Cache (Mock)</Button>
+              <Button variant="destructive" size="sm" className="mt-3 mr-2 rounded-md" onClick={() => handleMockAction("Seed Database")}>Seed Data (Mock)</Button>
+              <Button variant="destructive" size="sm" className="mt-3 rounded-md" onClick={() => handleMockAction("Clear Cache")}>Clear Cache (Mock)</Button>
             </div>
           </section>
 
@@ -75,7 +75,7 @@ export default function DevToolsPage() {
                 <li>Enable New Dashboard UI: OFF</li>
                 <li>Enable AI Assistant: ON</li>
               </ul>
-               <Button variant="outline" size="sm" className="mt-3" onClick={() => handleMockAction("Toggle Feature")}>Toggle Feature (Mock)</Button>
+               <Button variant="outline" size="sm" className="mt-3 rounded-md" onClick={() => handleMockAction("Toggle Feature")}>Toggle Feature (Mock)</Button>
             </div>
           </section>
 

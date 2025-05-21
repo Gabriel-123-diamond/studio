@@ -4,6 +4,9 @@
 import React, { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from '@/components/ui/skeleton';
+import { auth, db } from "@/lib/firebase";
+import { doc, getDoc } from "firebase/firestore";
+import type { User as FirebaseUser } from "firebase/auth";
 
 enum UserRole {
   MANAGER = "manager",
@@ -15,17 +18,33 @@ enum UserRole {
 
 export default function AppDashboardPage() {
   const [currentUserRole, setCurrentUserRole] = useState<UserRole>(UserRole.NONE);
-  const [isLoadingRole, setIsLoadingRole] = useState(true);
+  const [isLoadingSession, setIsLoadingSession] = useState(true);
+  const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
+
 
   useEffect(() => {
-    setIsLoadingRole(true);
-    const roleFromStorage = localStorage.getItem("userRole") as UserRole | null;
-    if (roleFromStorage) {
-      setCurrentUserRole(roleFromStorage);
-    } else {
-      setCurrentUserRole(UserRole.NONE); 
-    }
-    setIsLoadingRole(false);
+    const unsubscribe = auth.onAuthStateChanged(async (user) => {
+      if (user) {
+        setFirebaseUser(user);
+        try {
+          const userDocRef = doc(db, "users", user.uid);
+          const userDocSnap = await getDoc(userDocRef);
+          if (userDocSnap.exists()) {
+            const userData = userDocSnap.data();
+            setCurrentUserRole(userData.role as UserRole || UserRole.NONE);
+          } else {
+            setCurrentUserRole(UserRole.NONE);
+          }
+        } catch (error) {
+          console.error("Error fetching user role for dashboard:", error);
+          setCurrentUserRole(UserRole.NONE);
+        }
+      } else {
+        setCurrentUserRole(UserRole.NONE);
+      }
+      setIsLoadingSession(false);
+    });
+    return () => unsubscribe();
   }, []);
 
   const getWelcomeMessage = () => {
@@ -49,11 +68,11 @@ export default function AppDashboardPage() {
   const isDeveloper = currentUserRole === UserRole.DEVELOPER;
 
 
-  if (isLoadingRole) {
+  if (isLoadingSession) {
     return (
       <div className="w-full">
         <Card className="shadow-lg rounded-lg">
-          <CardHeader className="p-6">
+          <CardHeader className="p-6 rounded-t-lg">
             <Skeleton className="h-8 w-3/4 mb-2 rounded" />
             <Skeleton className="h-4 w-1/2 rounded" />
           </CardHeader>
@@ -127,11 +146,11 @@ export default function AppDashboardPage() {
             </div>
           )}
 
-           {(currentUserRole === UserRole.NONE || (!isManager && !isSupervisor && !isStaff && !isDeveloper)) && !isLoadingRole && (
+           {(currentUserRole === UserRole.NONE && !isLoadingSession) && (
              <div className="mt-8 p-8 border border-dashed border-destructive/50 rounded-lg text-center bg-destructive/10">
                 <p className="text-lg font-semibold text-destructive">Access Issue</p>
                 <p className="text-destructive-foreground">No specific dashboard view for your current role, or your role could not be identified.</p>
-                <p className="text-sm text-muted-foreground mt-2">Please ensure you are logged in correctly and your role is properly configured in the system. If this issue persists, contact an administrator.</p>
+                <p className="text-sm text-muted-foreground mt-2">Please ensure you are logged in correctly and your role is properly configured in the system (Firestore 'users' collection). If this issue persists, contact an administrator.</p>
              </div>
           )}
         </CardContent>

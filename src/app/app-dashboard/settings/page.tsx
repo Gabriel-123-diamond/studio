@@ -11,6 +11,8 @@ import { Separator } from "@/components/ui/separator";
 import { Bell, Palette, KeyRound, Save, Settings2 } from "lucide-react";
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
+import { auth } from '@/lib/firebase';
+import { EmailAuthProvider, reauthenticateWithCredential, updatePassword } from 'firebase/auth';
 
 export default function SettingsPage() {
   const [emailNotifications, setEmailNotifications] = useState(true);
@@ -22,14 +24,14 @@ export default function SettingsPage() {
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [isPasswordChanging, setIsPasswordChanging] = useState(false);
 
   const handleSaveChanges = () => {
-    // In a real app, you would send these settings to a backend or save to localStorage/Firebase
     console.log("Settings saved:", { emailNotifications, pushNotifications, theme });
     toast({
       title: "Settings Saved",
       description: "Your preferences have been updated successfully.",
-      variant: "default", // "default", "destructive", or custom
+      variant: "default",
       duration: 3000,
     });
   };
@@ -51,17 +53,45 @@ export default function SettingsPage() {
       });
       return;
     }
-    // TODO: Implement actual Firebase password change logic
-    // This would involve re-authenticating the user with currentPassword, then updating to newPassword
-    console.log("Attempting to change password. Current:", currentPassword, "New:", newPassword);
-    toast({
-      title: "Password Change Requested",
-      description: "Password change functionality is a placeholder.",
-    });
-    // Reset fields after attempt
-    setCurrentPassword("");
-    setNewPassword("");
-    setConfirmPassword("");
+
+    const user = auth.currentUser;
+    if (!user || !user.email) {
+      toast({
+        title: "Error",
+        description: "No user logged in or email not available.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsPasswordChanging(true);
+    try {
+      const credential = EmailAuthProvider.credential(user.email, currentPassword);
+      await reauthenticateWithCredential(user, credential);
+      await updatePassword(user, newPassword);
+      toast({
+        title: "Password Changed",
+        description: "Your password has been updated successfully.",
+      });
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+    } catch (error: any) {
+      console.error("Password change error:", error);
+      let description = "Failed to change password. Please try again.";
+      if (error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
+        description = "Incorrect current password.";
+      } else if (error.code === 'auth/weak-password') {
+        description = "New password is too weak.";
+      }
+      toast({
+        title: "Password Change Failed",
+        description: description,
+        variant: "destructive",
+      });
+    } finally {
+      setIsPasswordChanging(false);
+    }
   };
 
 
@@ -145,24 +175,26 @@ export default function SettingsPage() {
             <div className="space-y-4">
               <div>
                 <Label htmlFor="current-password">Current Password</Label>
-                <Input type="password" id="current-password" placeholder="Enter your current password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} className="mt-1" />
+                <Input type="password" id="current-password" placeholder="Enter your current password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} className="mt-1 rounded-md" />
               </div>
               <div>
                 <Label htmlFor="new-password">New Password</Label>
-                <Input type="password" id="new-password" placeholder="Enter a new password (min. 6 characters)" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} className="mt-1" />
+                <Input type="password" id="new-password" placeholder="Enter a new password (min. 6 characters)" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} className="mt-1 rounded-md" />
               </div>
               <div>
                 <Label htmlFor="confirm-password">Confirm New Password</Label>
-                <Input type="password" id="confirm-password" placeholder="Confirm your new password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} className="mt-1" />
+                <Input type="password" id="confirm-password" placeholder="Confirm your new password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} className="mt-1 rounded-md" />
               </div>
-              <Button variant="outline" onClick={handleChangePassword} className="w-full md:w-auto border-primary text-primary hover:bg-primary/10">Change Password</Button>
+              <Button variant="outline" onClick={handleChangePassword} disabled={isPasswordChanging} className="w-full md:w-auto border-primary text-primary hover:bg-primary/10 rounded-md">
+                {isPasswordChanging ? "Changing..." : "Change Password"}
+              </Button>
             </div>
           </section>
           
           <Separator />
 
           <div className="flex justify-end pt-4">
-            <Button onClick={handleSaveChanges} className="bg-primary text-primary-foreground hover:bg-primary/90">
+            <Button onClick={handleSaveChanges} className="bg-primary text-primary-foreground hover:bg-primary/90 rounded-md">
               <Save className="mr-2 h-4 w-4" />
               Save All Settings
             </Button>

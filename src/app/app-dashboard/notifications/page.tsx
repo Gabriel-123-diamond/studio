@@ -2,11 +2,11 @@
 "use client";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Bell, MessageSquareWarning } from "lucide-react"; // Using Bell or MessageSquareWarning
+import { Bell, MessageSquareWarning } from "lucide-react";
 
 export default function NotificationsPage() {
   // This page is intended for Staff roles and potentially Supervisors/Managers for system-wide alerts.
-  // Access control and notification content will be role-specific.
+  // Access control and notification content will be role-specific, managed via Firestore.
 
   return (
     <div className="w-full">
@@ -23,7 +23,7 @@ export default function NotificationsPage() {
           </div>
         </CardHeader>
         <CardContent className="p-6">
-          <p className="text-lg">Stay informed with important updates and alerts relevant to your role and tasks.</p>
+          <p className="text-lg">Stay informed with important updates and alerts relevant to your role and tasks. Notifications will be fetched from a Firestore collection.</p>
           <p className="mt-2 text-muted-foreground">Notifications will appear here, such as new task assignments, approval status changes, important announcements, etc.</p>
           
           <div className="mt-8 p-8 border border-dashed border-muted-foreground/50 rounded-lg text-center">
@@ -32,7 +32,6 @@ export default function NotificationsPage() {
             </div>
             <p className="text-xl font-semibold text-muted-foreground">Notification Center</p>
             <p className="text-sm text-muted-foreground mt-2">A live feed of notifications with options to mark as read or dismiss will be implemented here.</p>
-            {/* Placeholder for notification list */}
           </div>
         </CardContent>
       </Card>

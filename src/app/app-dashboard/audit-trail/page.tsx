@@ -6,7 +6,7 @@ import { History, ShieldAlert } from "lucide-react";
 
 export default function AuditTrailPage() {
   // This page is intended for Managers/Developers.
-  // Access control should be primarily handled by the layout based on role.
+  // Access control is handled by the layout based on role fetched from Firebase.
 
   return (
     <div className="w-full">
@@ -23,7 +23,7 @@ export default function AuditTrailPage() {
           </div>
         </CardHeader>
         <CardContent className="p-6">
-          <p className="text-lg">This section provides a detailed and immutable log of significant actions performed within the system for auditing, security, and compliance purposes.</p>
+          <p className="text-lg">This section provides a detailed and immutable log of significant actions performed within the system for auditing, security, and compliance purposes. This data would typically be stored securely, perhaps in Firestore or a dedicated logging service.</p>
           <p className="mt-2 text-muted-foreground">Track user logins, role changes, staff modifications, approval events, and other critical system activities.</p>
           
           <div className="mt-8 p-8 border border-dashed border-muted-foreground/50 rounded-lg text-center">

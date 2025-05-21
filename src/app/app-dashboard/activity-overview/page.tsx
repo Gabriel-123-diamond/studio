@@ -6,7 +6,7 @@ import { LineChart, Activity } from "lucide-react";
 
 export default function ActivityOverviewPage() {
   // This page is intended for Managers/Developers.
-  // Access control should be primarily handled by the layout based on role.
+  // Access control is handled by the layout based on role fetched from Firebase.
 
   return (
     <div className="w-full">
@@ -24,7 +24,7 @@ export default function ActivityOverviewPage() {
         </CardHeader>
         <CardContent className="p-6">
           <p className="text-lg">Managers and Developers can access comprehensive reports, activity summaries, and key performance indicators across all departments here.</p>
-          <p className="mt-2 text-muted-foreground">This will include data visualizations, trend analysis, and detailed logs to monitor overall operational efficiency.</p>
+          <p className="mt-2 text-muted-foreground">This will include data visualizations, trend analysis, and detailed logs to monitor overall operational efficiency, likely drawing data from Firestore.</p>
           
           <div className="mt-8 p-8 border border-dashed border-muted-foreground/50 rounded-lg text-center">
             <div className="flex justify-center items-center mb-4">

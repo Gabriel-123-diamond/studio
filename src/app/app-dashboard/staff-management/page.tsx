@@ -2,9 +2,13 @@
 "use client";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Users } from "lucide-react";
+import { Users, UserCog } from "lucide-react"; // UserCog or Users
 import React, { useEffect, useState } from 'react';
 import { Skeleton } from "@/components/ui/skeleton";
+import { auth, db } from "@/lib/firebase";
+import { doc, getDoc } from "firebase/firestore";
+import type { User as FirebaseUser } from "firebase/auth";
+
 
 enum UserRole {
   MANAGER = "manager",
@@ -16,17 +20,31 @@ enum UserRole {
 
 export default function StaffManagementPage() {
   const [currentUserRole, setCurrentUserRole] = useState<UserRole>(UserRole.NONE);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingSession, setIsLoadingSession] = useState(true);
+  const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
 
   useEffect(() => {
-    setIsLoading(true);
-    const roleFromStorage = localStorage.getItem("userRole") as UserRole | null;
-    if (roleFromStorage) {
-      setCurrentUserRole(roleFromStorage);
-    } else {
-      setCurrentUserRole(UserRole.NONE); 
-    }
-    setIsLoading(false);
+    const unsubscribe = auth.onAuthStateChanged(async (user) => {
+      if (user) {
+        setFirebaseUser(user);
+        try {
+          const userDocRef = doc(db, "users", user.uid);
+          const userDocSnap = await getDoc(userDocRef);
+          if (userDocSnap.exists()) {
+            setCurrentUserRole(userDocSnap.data().role as UserRole || UserRole.NONE);
+          } else {
+            setCurrentUserRole(UserRole.NONE);
+          }
+        } catch (error) {
+          console.error("Error fetching user role for staff management:", error);
+          setCurrentUserRole(UserRole.NONE);
+        }
+      } else {
+        setCurrentUserRole(UserRole.NONE);
+      }
+      setIsLoadingSession(false);
+    });
+    return () => unsubscribe();
   }, []);
 
   const descriptionText = () => {
@@ -39,7 +57,9 @@ export default function StaffManagementPage() {
     return "Staff information display. Access restricted."; 
   };
 
-  if (isLoading) {
+  const pageIcon = currentUserRole === UserRole.MANAGER || currentUserRole === UserRole.DEVELOPER ? Users : UserCog;
+
+  if (isLoadingSession) {
     return (
       <div className="w-full">
         <Card className="shadow-lg rounded-lg">
@@ -65,13 +85,12 @@ export default function StaffManagementPage() {
     );
   }
 
-
   return (
     <div className="w-full">
       <Card className="shadow-lg rounded-lg">
         <CardHeader className="bg-muted/30 p-6 rounded-t-lg">
           <div className="flex items-center space-x-4">
-            <Users className="h-10 w-10 text-primary" />
+            {React.createElement(pageIcon, { className: "h-10 w-10 text-primary" })}
             <div>
               <CardTitle className="text-3xl">Staff Management</CardTitle>
               <CardDescription className="text-md">
@@ -87,7 +106,7 @@ export default function StaffManagementPage() {
             <>
               <ul className="list-disc list-inside mt-4 space-y-2 text-muted-foreground">
                 {(currentUserRole === UserRole.MANAGER || currentUserRole === UserRole.DEVELOPER) && 
-                  <li>Full control to add, edit, and remove any staff member and manage roles across all departments.</li>
+                  <li>Full control to add, edit, and remove any staff member and manage roles across all departments via Firestore.</li>
                 }
                 {currentUserRole === UserRole.SUPERVISOR && 
                   <li>Manage staff within your assigned departments (Sales, Storekeeper, Baker, Accountant). View details, edit certain information, and submit requests for promotions or deletions.</li>

@@ -5,6 +5,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { CheckCircle, Send, AlertTriangle } from "lucide-react"; 
 import React, { useEffect, useState } from 'react';
 import { Skeleton } from "@/components/ui/skeleton";
+import { auth, db } from "@/lib/firebase";
+import { doc, getDoc } from "firebase/firestore";
+import type { User as FirebaseUser } from "firebase/auth";
 
 
 enum UserRole {
@@ -17,24 +20,38 @@ enum UserRole {
 
 export default function ApprovalRequestsPage() {
   const [currentUserRole, setCurrentUserRole] = useState<UserRole>(UserRole.NONE);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingSession, setIsLoadingSession] = useState(true);
+  const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
 
 
   useEffect(() => {
-    setIsLoading(true);
-    const roleFromStorage = localStorage.getItem("userRole") as UserRole | null;
-    if (roleFromStorage) {
-      setCurrentUserRole(roleFromStorage);
-    } else {
-      setCurrentUserRole(UserRole.NONE); 
-    }
-    setIsLoading(false);
+    const unsubscribe = auth.onAuthStateChanged(async (user) => {
+      if (user) {
+        setFirebaseUser(user);
+        try {
+          const userDocRef = doc(db, "users", user.uid);
+          const userDocSnap = await getDoc(userDocRef);
+          if (userDocSnap.exists()) {
+            setCurrentUserRole(userDocSnap.data().role as UserRole || UserRole.NONE);
+          } else {
+            setCurrentUserRole(UserRole.NONE);
+          }
+        } catch (error) {
+          console.error("Error fetching user role for approval requests:", error);
+          setCurrentUserRole(UserRole.NONE);
+        }
+      } else {
+        setCurrentUserRole(UserRole.NONE);
+      }
+      setIsLoadingSession(false);
+    });
+    return () => unsubscribe();
   }, []);
 
   const isManagerView = currentUserRole === UserRole.MANAGER || currentUserRole === UserRole.DEVELOPER;
   const isSupervisorView = currentUserRole === UserRole.SUPERVISOR;
 
-  if (isLoading) {
+  if (isLoadingSession) {
     return (
       <div className="w-full">
         <Card className="shadow-lg rounded-lg">
@@ -97,7 +114,7 @@ export default function ApprovalRequestsPage() {
           
           {(isManagerView || isSupervisorView) && (
             <>
-            <p className="mt-2 text-muted-foreground">The request and approval workflow, including forms, lists of pending/approved/rejected requests, and notification systems, will be implemented here.</p>
+            <p className="mt-2 text-muted-foreground">The request and approval workflow, including forms, lists of pending/approved/rejected requests, and notification systems, will be implemented here using Firestore.</p>
             <div className="mt-8 p-8 border border-dashed border-muted-foreground/50 rounded-lg text-center">
                 <p className="text-xl font-semibold text-muted-foreground">
                 {isManagerView ? "Approval Request Dashboard" : "Request Submission Portal"}
