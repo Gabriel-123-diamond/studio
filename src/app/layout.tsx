@@ -16,9 +16,6 @@ const geistMono = Geist_Mono({
   subsets: ['latin'],
 });
 
-// Note: The static `metadata` export was removed because this is a Client Component.
-// Next.js disallows exporting `metadata` from components marked with "use client".
-
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -35,14 +32,14 @@ export default function RootLayout({
       <head>
         <title>Meal Villa</title>
         <meta name="description" content="Your personalized culinary journey." />
-        <link rel="icon" href="/favicon.ico" sizes="any" /> {/* Ensure favicon is linked */}
+        <link rel="icon" href="/favicon.ico" sizes="any" />
       </head>
       <body 
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-        suppressHydrationWarning={true} // Added to help with potential body attribute mismatches
+        suppressHydrationWarning={true}
       >
         {children}
-        {isClient && <Toaster />} {/* Render Toaster only on client-side after mount */}
+        {isClient && <Toaster />}
       </body>
     </html>
   );
