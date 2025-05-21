@@ -2,29 +2,36 @@
 "use client";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { LineChart } from "lucide-react";
+import { LineChart, Activity } from "lucide-react";
 
 export default function ActivityOverviewPage() {
-  // Placeholder - For Managers
+  // This page is intended for Managers/Developers.
+  // Access control should be primarily handled by the layout based on role.
+
   return (
     <div className="w-full">
-      <Card className="shadow-lg">
+      <Card className="shadow-lg rounded-lg">
         <CardHeader className="bg-muted/30 p-6 rounded-t-lg">
           <div className="flex items-center space-x-4">
             <LineChart className="h-10 w-10 text-primary" />
             <div>
               <CardTitle className="text-3xl">Activity Overview</CardTitle>
               <CardDescription className="text-md">
-                View reports and summaries of activities from all departments. (Manager View)
+                View aggregated reports and summaries of activities from all departments. (Manager/Developer View)
               </CardDescription>
             </div>
           </div>
         </CardHeader>
         <CardContent className="p-6">
-          <p>Managers can access comprehensive reports and activity summaries here.</p>
-          <p className="mt-4 text-muted-foreground">Data visualizations and detailed logs will be available.</p>
+          <p className="text-lg">Managers and Developers can access comprehensive reports, activity summaries, and key performance indicators across all departments here.</p>
+          <p className="mt-2 text-muted-foreground">This will include data visualizations, trend analysis, and detailed logs to monitor overall operational efficiency.</p>
+          
           <div className="mt-8 p-8 border border-dashed border-muted-foreground/50 rounded-lg text-center">
-            <p className="text-lg text-muted-foreground">Activity reports and dashboards coming soon.</p>
+            <div className="flex justify-center items-center mb-4">
+                <Activity className="h-12 w-12 text-primary/70" />
+            </div>
+            <p className="text-xl font-semibold text-muted-foreground">Advanced Activity Dashboards</p>
+            <p className="text-sm text-muted-foreground mt-2">Charts, graphs, and filterable report generators coming soon.</p>
           </div>
         </CardContent>
       </Card>

@@ -4,15 +4,17 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Users } from "lucide-react";
 import React, { useEffect, useState } from 'react';
-import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
-import { auth, db } from '@/lib/firebase';
+// Firebase imports removed
+// import { onAuthStateChanged } from 'firebase/auth';
+// import { doc, getDoc } from 'firebase/firestore';
+// import { auth, db } from '@/lib/firebase';
+import { Skeleton } from "@/components/ui/skeleton";
 
 enum UserRole {
   MANAGER = "manager",
   SUPERVISOR = "supervisor",
   DEVELOPER = "developer",
-  STAFF = "staff", // Added for completeness
+  STAFF = "staff", 
   NONE = "none",
 }
 
@@ -21,46 +23,56 @@ export default function StaffManagementPage() {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (user) {
-        try {
-          const userDocRef = doc(db, "users", user.uid);
-          const userDocSnap = await getDoc(userDocRef);
-          if (userDocSnap.exists()) {
-            setCurrentUserRole(userDocSnap.data().role as UserRole || UserRole.NONE);
-          } else {
-            setCurrentUserRole(UserRole.NONE);
-          }
-        } catch (error) {
-          console.error("Error fetching user role:", error);
-          setCurrentUserRole(UserRole.NONE);
-        }
-      } else {
-        setCurrentUserRole(UserRole.NONE);
-      }
-      setIsLoading(false);
-    });
-    return () => unsubscribe();
+    setIsLoading(true);
+    const roleFromStorage = localStorage.getItem("userRole") as UserRole | null;
+    if (roleFromStorage) {
+      setCurrentUserRole(roleFromStorage);
+    } else {
+      setCurrentUserRole(UserRole.NONE); // Should be redirected by layout
+    }
+    setIsLoading(false);
   }, []);
 
   const descriptionText = () => {
     if (currentUserRole === UserRole.MANAGER || currentUserRole === UserRole.DEVELOPER) {
-      return "View, add, edit, or remove staff members across all departments. Assign and change roles.";
+      return "Oversee all staff members. Add, edit, or remove staff across departments and manage their roles.";
     }
     if (currentUserRole === UserRole.SUPERVISOR) {
-      return "Manage staff in Sales, Storekeeper, Baker, and Accountant departments. Edit permissions and request promotions/deletions.";
+      return "Manage staff within your assigned departments (e.g., Sales, Storekeeping, Bakery, Accounts). Edit details and request promotions or deletions.";
     }
-    return "Staff management interface.";
+    return "Staff information display. Access restricted."; 
   };
 
   if (isLoading) {
-    return <div className="flex justify-center items-center h-full"><p>Loading...</p></div>;
+    return (
+      <div className="w-full">
+        <Card className="shadow-lg rounded-lg">
+          <CardHeader className="bg-muted/30 p-6 rounded-t-lg">
+             <div className="flex items-center space-x-4">
+                <Skeleton className="h-10 w-10 rounded-full" />
+                <div>
+                    <Skeleton className="h-8 w-48 mb-1 rounded" />
+                    <Skeleton className="h-4 w-64 rounded" />
+                </div>
+            </div>
+          </CardHeader>
+          <CardContent className="p-6">
+            <Skeleton className="h-4 w-full mb-2 rounded" />
+            <Skeleton className="h-4 w-3/4 mb-4 rounded" />
+            <div className="mt-8 p-8 border border-dashed rounded-lg">
+                <Skeleton className="h-6 w-1/2 mx-auto rounded" />
+                <Skeleton className="h-4 w-1/3 mx-auto mt-2 rounded" />
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
   }
 
 
   return (
     <div className="w-full">
-      <Card className="shadow-lg">
+      <Card className="shadow-lg rounded-lg">
         <CardHeader className="bg-muted/30 p-6 rounded-t-lg">
           <div className="flex items-center space-x-4">
             <Users className="h-10 w-10 text-primary" />
@@ -73,17 +85,31 @@ export default function StaffManagementPage() {
           </div>
         </CardHeader>
         <CardContent className="p-6">
-          <p>This section allows for the administration of all staff members. Features will vary based on your role.</p>
-          <ul className="list-disc list-inside mt-4 space-y-1 text-muted-foreground">
-            {(currentUserRole === UserRole.MANAGER || currentUserRole === UserRole.DEVELOPER) && <li>Full control over all staff and departments.</li>}
-            {currentUserRole === UserRole.SUPERVISOR && <li>Manage staff within your assigned departments (Sales, Storekeeper, Baker, Accountant).</li>}
-            <li>View staff grouped by department.</li>
-          </ul>
-          {/* Placeholder for staff listing and management tools */}
-          <div className="mt-8 p-8 border border-dashed border-muted-foreground/50 rounded-lg text-center">
-            <p className="text-lg text-muted-foreground">Staff management interface coming soon.</p>
-            <p className="text-sm text-muted-foreground">Features will be role-specific.</p>
-          </div>
+          <p className="text-lg">This section allows for the administration of staff members. Features will vary based on your role.</p>
+          
+          {(currentUserRole === UserRole.MANAGER || currentUserRole === UserRole.DEVELOPER || currentUserRole === UserRole.SUPERVISOR) ? (
+            <>
+              <ul className="list-disc list-inside mt-4 space-y-2 text-muted-foreground">
+                {(currentUserRole === UserRole.MANAGER || currentUserRole === UserRole.DEVELOPER) && 
+                  <li>Full control to add, edit, and remove any staff member and manage roles across all departments.</li>
+                }
+                {currentUserRole === UserRole.SUPERVISOR && 
+                  <li>Manage staff within your assigned departments (Sales, Storekeeper, Baker, Accountant). View details, edit certain information, and submit requests for promotions or deletions.</li>
+                }
+                <li>View staff profiles, typically grouped by department or role.</li>
+                <li>Search and filter staff members.</li>
+              </ul>
+              <div className="mt-8 p-8 border border-dashed border-muted-foreground/50 rounded-lg text-center">
+                <p className="text-xl font-semibold text-muted-foreground">Staff Listing & Management Tools</p>
+                <p className="text-sm text-muted-foreground mt-2">Detailed staff tables, editing forms, and role assignment interfaces will be implemented here.</p>
+              </div>
+            </>
+          ) : (
+            <div className="mt-8 p-8 border border-dashed border-destructive/50 rounded-lg text-center bg-destructive/10">
+              <p className="text-lg font-semibold text-destructive">Access Denied</p>
+              <p className="text-destructive-foreground">You do not have permission to manage staff.</p>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

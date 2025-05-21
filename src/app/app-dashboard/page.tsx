@@ -4,16 +4,17 @@
 import React, { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from '@/components/ui/skeleton';
-import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
-import { auth, db } from '@/lib/firebase';
+// Firebase imports removed
+// import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
+// import { doc, getDoc } from 'firebase/firestore';
+// import { auth, db } from '@/lib/firebase';
 
 
 enum UserRole {
   MANAGER = "manager",
   SUPERVISOR = "supervisor",
   STAFF = "staff",
-  DEVELOPER = "developer", // SuperAdmin effectively
+  DEVELOPER = "developer",
   NONE = "none",
 }
 
@@ -22,26 +23,14 @@ export default function AppDashboardPage() {
   const [isLoadingRole, setIsLoadingRole] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (user) {
-        try {
-          const userDocRef = doc(db, "users", user.uid);
-          const userDocSnap = await getDoc(userDocRef);
-          if (userDocSnap.exists()) {
-            setCurrentUserRole(userDocSnap.data().role as UserRole || UserRole.NONE);
-          } else {
-            setCurrentUserRole(UserRole.NONE);
-          }
-        } catch (error) {
-          console.error("Error fetching user role:", error);
-          setCurrentUserRole(UserRole.NONE);
-        }
-      } else {
-        setCurrentUserRole(UserRole.NONE); // Should be redirected by layout if no user
-      }
-      setIsLoadingRole(false);
-    });
-    return () => unsubscribe();
+    setIsLoadingRole(true);
+    const roleFromStorage = localStorage.getItem("userRole") as UserRole | null;
+    if (roleFromStorage) {
+      setCurrentUserRole(roleFromStorage);
+    } else {
+      setCurrentUserRole(UserRole.NONE); // Should be redirected by layout if no role
+    }
+    setIsLoadingRole(false);
   }, []);
 
 
@@ -60,7 +49,6 @@ export default function AppDashboardPage() {
     }
   };
 
-  // Define role booleans locally
   const isManager = currentUserRole === UserRole.MANAGER;
   const isSupervisor = currentUserRole === UserRole.SUPERVISOR;
   const isStaff = currentUserRole === UserRole.STAFF;
@@ -70,22 +58,22 @@ export default function AppDashboardPage() {
   if (isLoadingRole) {
     return (
       <div className="w-full">
-        <Card>
-          <CardHeader>
-            <Skeleton className="h-8 w-3/4 mb-2" />
-            <Skeleton className="h-4 w-1/2" />
+        <Card className="shadow-lg rounded-lg">
+          <CardHeader className="p-6">
+            <Skeleton className="h-8 w-3/4 mb-2 rounded" />
+            <Skeleton className="h-4 w-1/2 rounded" />
           </CardHeader>
-          <CardContent>
-            <Skeleton className="h-4 w-full mb-4" />
+          <CardContent className="p-6">
+            <Skeleton className="h-4 w-full mb-4 rounded" />
             <div className="mt-8 grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
               {[1, 2, 3].map(i => (
-                <Card key={i} className="shadow-md">
-                  <CardHeader>
-                    <Skeleton className="h-6 w-1/2 mb-1" />
+                <Card key={i} className="shadow-md rounded-lg">
+                  <CardHeader className="p-4">
+                    <Skeleton className="h-6 w-1/2 mb-1 rounded" />
                   </CardHeader>
-                  <CardContent>
-                    <Skeleton className="h-4 w-3/4 mb-2" />
-                    <Skeleton className="h-32 w-full rounded-lg" />
+                  <CardContent className="p-4">
+                    <Skeleton className="h-4 w-3/4 mb-2 rounded" />
+                    <Skeleton className="h-24 w-full rounded-lg" />
                   </CardContent>
                 </Card>
               ))}
@@ -98,62 +86,60 @@ export default function AppDashboardPage() {
 
   return (
     <div className="w-full">
-      <Card>
-        <CardHeader>
-          <CardTitle>Main Application Dashboard</CardTitle>
-          <CardDescription>{getWelcomeMessage()}</CardDescription>
+      <Card className="shadow-lg rounded-lg">
+        <CardHeader className="p-6 bg-muted/30 rounded-t-lg">
+          <CardTitle className="text-3xl">Main Application Dashboard</CardTitle>
+          <CardDescription className="text-md">{getWelcomeMessage()}</CardDescription>
         </CardHeader>
-        <CardContent>
-          <p>This is the main content area. Your role-specific widgets and components will appear here.</p>
+        <CardContent className="p-6">
+          <p className="text-lg">This is your main content area. Role-specific widgets and components will appear here.</p>
           
-          {/* Placeholder content based on role, can be expanded */}
-          {(isManager || isDeveloper) && ( // Developer also sees Manager dashboard items
+          {(isManager || isDeveloper) && (
             <div className="mt-8 grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
-              <Card className="shadow-md">
-                <CardHeader><CardTitle className="text-xl">Team Performance</CardTitle></CardHeader>
-                <CardContent><p className="text-muted-foreground">Manager-specific stats.</p></CardContent>
+              <Card className="shadow-md rounded-lg">
+                <CardHeader className="p-4"><CardTitle className="text-xl">Team Performance</CardTitle></CardHeader>
+                <CardContent className="p-4"><p className="text-muted-foreground">Summary of team activities and performance metrics.</p></CardContent>
               </Card>
-              <Card className="shadow-md">
-                <CardHeader><CardTitle className="text-xl">Pending Approvals</CardTitle></CardHeader>
-                <CardContent><p className="text-muted-foreground">View requests needing action.</p></CardContent>
+              <Card className="shadow-md rounded-lg">
+                <CardHeader className="p-4"><CardTitle className="text-xl">Pending Approvals</CardTitle></CardHeader>
+                <CardContent className="p-4"><p className="text-muted-foreground">View requests awaiting your action.</p></CardContent>
               </Card>
-               <Card className="shadow-md">
-                <CardHeader><CardTitle className="text-xl">System Health</CardTitle></CardHeader>
-                <CardContent><p className="text-muted-foreground">Overview of system status.</p></CardContent>
+               <Card className="shadow-md rounded-lg">
+                <CardHeader className="p-4"><CardTitle className="text-xl">System Health</CardTitle></CardHeader>
+                <CardContent className="p-4"><p className="text-muted-foreground">Overview of application status and key metrics.</p></CardContent>
               </Card>
             </div>
           )}
 
           {isSupervisor && (
             <div className="mt-8 grid grid-cols-1 gap-6 md:grid-cols-2">
-              <Card className="shadow-md">
-                <CardHeader><CardTitle className="text-xl">Department Tasks</CardTitle></CardHeader>
-                <CardContent><p className="text-muted-foreground">Tasks for your department.</p></CardContent>
+              <Card className="shadow-md rounded-lg">
+                <CardHeader className="p-4"><CardTitle className="text-xl">Department Tasks</CardTitle></CardHeader>
+                <CardContent className="p-4"><p className="text-muted-foreground">Overview of tasks for your department.</p></CardContent>
               </Card>
-              <Card className="shadow-md">
-                <CardHeader><CardTitle className="text-xl">Staff Activity</CardTitle></CardHeader>
-                <CardContent><p className="text-muted-foreground">Recent activity from your team.</p></CardContent>
+              <Card className="shadow-md rounded-lg">
+                <CardHeader className="p-4"><CardTitle className="text-xl">Staff Activity</CardTitle></CardHeader>
+                <CardContent className="p-4"><p className="text-muted-foreground">Recent activity logs from your team members.</p></CardContent>
               </Card>
             </div>
           )}
 
           {isStaff && (
              <div className="mt-8">
-              <Card className="shadow-md">
-                <CardHeader><CardTitle className="text-xl">Your Active Tasks</CardTitle></CardHeader>
-                <CardContent><p className="text-muted-foreground">List of tasks assigned to you.</p></CardContent>
+              <Card className="shadow-md rounded-lg">
+                <CardHeader className="p-4"><CardTitle className="text-xl">Your Active Tasks</CardTitle></CardHeader>
+                <CardContent className="p-4"><p className="text-muted-foreground">A list of tasks currently assigned to you.</p></CardContent>
               </Card>
             </div>
           )}
 
-          { (currentUserRole === UserRole.NONE || (!isManager && !isSupervisor && !isStaff && !isDeveloper)) && (
-             <div className="mt-8 text-center text-muted-foreground">
-                <p>No specific dashboard view for your current role or role not identified.</p>
-                <p>Ensure you are logged in and your role is correctly set up in Firebase.</p>
+           {(currentUserRole === UserRole.NONE && !isLoadingRole) && (
+             <div className="mt-8 p-8 border border-dashed border-destructive/50 rounded-lg text-center bg-destructive/10">
+                <p className="text-lg font-semibold text-destructive">Access Issue</p>
+                <p className="text-destructive-foreground">No specific dashboard view for your current role, or your role could not be identified.</p>
+                <p className="text-sm text-muted-foreground mt-2">Please ensure you are logged in correctly and your role is properly configured in the system. If this issue persists, contact an administrator.</p>
              </div>
           )}
-
-
         </CardContent>
       </Card>
     </div>

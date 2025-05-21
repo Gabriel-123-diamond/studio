@@ -7,8 +7,8 @@ import * as z from "zod";
 import { useRouter } from "next/navigation";
 import { Lock, Badge, Eye, EyeOff, UserCircle } from "lucide-react";
 import React, { useState, useEffect } from "react";
-import { signInWithEmailAndPassword } from "firebase/auth";
-import { auth } from "@/lib/firebase"; // Import Firebase auth instance
+// Firebase Auth import removed: import { signInWithEmailAndPassword } from "firebase/auth";
+// Firebase lib import removed: import { auth } from "@/lib/firebase"; 
 
 import { Button } from "@/components/ui/button";
 import {
@@ -23,17 +23,6 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
-// UserRole enum is no longer needed here as roles are fetched from Firestore
-// enum UserRole {
-//   MANAGER = "manager",
-//   SUPERVISOR = "supervisor",
-//   STAFF = "staff",
-//   DEVELOPER = "developer", 
-// }
-
-// Mock users are removed, authentication is handled by Firebase
-// const mockUsers: Record<string, { passwordPlain: string; role: UserRole }> = { ... };
-
 const loginFormSchema = z.object({
   staffId: z.string().regex(/^\d{6}$/, { message: "Staff ID must be exactly 6 digits." }),
   password: z.string().min(6, { message: "Password must be at least 6 characters." }),
@@ -41,20 +30,34 @@ const loginFormSchema = z.object({
 
 type LoginFormValues = z.infer<typeof loginFormSchema>;
 
+// Reinstating UserRole enum for mock login
+enum UserRole {
+  MANAGER = "manager",
+  SUPERVISOR = "supervisor",
+  STAFF = "staff",
+  DEVELOPER = "developer",
+  NONE = "none",
+}
+
+// Mock user data - this was the pre-Firebase structure
+const mockUsers: { [key: string]: { role: UserRole, password?: string } } = {
+  "111111": { role: UserRole.MANAGER, password: "password" }, 
+  "222222": { role: UserRole.SUPERVISOR, password: "password" },
+  "333333": { role: UserRole.STAFF, password: "password" }, 
+  "000000": { role: UserRole.DEVELOPER, password: "superpassword" } 
+};
+
 export default function LoginPage() {
   const router = useRouter();
   const { toast } = useToast();
   const [showPassword, setShowPassword] = useState(false);
 
-  // Redirect if already logged in (Firebase auth state will handle this in layout)
-  // It's good to keep this for an initial client-side check if desired, but layout's auth check is primary
   useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged(user => {
-      if (user) {
-        router.push("/app-dashboard");
-      }
-    });
-    return () => unsubscribe();
+    // Check if user is already "logged in" via localStorage
+    const storedRole = localStorage.getItem("userRole");
+    if (storedRole && storedRole !== UserRole.NONE) {
+      router.push("/app-dashboard");
+    }
   }, [router]);
 
   const form = useForm<LoginFormValues>({
@@ -66,38 +69,29 @@ export default function LoginPage() {
   });
 
   async function onSubmit(values: LoginFormValues) {
-    const email = `${values.staffId}@mealvilla.com`; // Construct email from Staff ID
+    const staffId = values.staffId;
     const password = values.password;
+    const userDetails = mockUsers[staffId];
 
-    try {
-      await signInWithEmailAndPassword(auth, email, password);
-      
+    if (userDetails && userDetails.password === password) {
+      localStorage.setItem("userRole", userDetails.role);
+      localStorage.setItem("staffId", staffId); // Store staffId
+
       toast({
         title: "Login Successful!",
         description: "Welcome back! Redirecting to dashboard...",
         variant: "default",
       });
-
-      // Firebase onAuthStateChanged in layout will handle fetching roles and redirecting
-      // setTimeout(() => {
-      //   router.push("/app-dashboard"); 
-      // }, 1500);
-      // No explicit redirect here, let onAuthStateChanged in layout handle it after role fetching
-
-    } catch (error: any) {
-      console.error("Firebase Authentication Error:", error);
+      router.push("/app-dashboard");
+    } else {
       let errorMessage = "Invalid Staff ID or Password.";
-      if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
-        errorMessage = "Invalid Staff ID or Password.";
-      } else if (error.code === 'auth/invalid-email') {
-        errorMessage = "Invalid Staff ID format.";
-      }
+      // Add more specific error messages for mock users if needed
       toast({
         title: "Login Failed",
         description: errorMessage,
         variant: "destructive",
       });
-      form.reset();
+      form.reset({ staffId: values.staffId, password: "" });
     }
   }
 

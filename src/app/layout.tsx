@@ -1,11 +1,10 @@
 
-"use client"; // Added because we are using hooks
+"use client"; 
 
-// import type {Metadata} from 'next'; // Metadata type import is no longer needed here
 import { Geist, Geist_Mono } from 'next/font/google';
 import './globals.css';
-import { Toaster } from "@/components/ui/toaster"; // Import Toaster
-import { useState, useEffect } from 'react'; // Added
+import { Toaster } from "@/components/ui/toaster";
+import { useState, useEffect } from 'react';
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
@@ -19,35 +18,31 @@ const geistMono = Geist_Mono({
 
 // Note: The static `metadata` export was removed because this is a Client Component.
 // Next.js disallows exporting `metadata` from components marked with "use client".
-// To set metadata for the root layout, alternative strategies would be needed
-// if this component must remain client-side (e.g. for the Toaster).
 
 export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const [isClient, setIsClient] = useState(false); // Added state
+  const [isClient, setIsClient] = useState(false);
 
-  useEffect(() => { // Added effect
+  useEffect(() => {
     setIsClient(true);
   }, []);
 
   return (
     <html lang="en">
       <head>
-        {/* You can manually add title and meta tags here if needed,
-            or use next/head for more dynamic client-side updates,
-            though the App Router prefers metadata exports from Server Components. */}
         <title>Meal Villa</title>
         <meta name="description" content="Your personalized culinary journey." />
+        <link rel="icon" href="/favicon.ico" sizes="any" /> {/* Ensure favicon is linked */}
       </head>
       <body 
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-        suppressHydrationWarning={true}
+        suppressHydrationWarning={true} // Added to help with potential body attribute mismatches
       >
         {children}
-        {isClient && <Toaster />} {/* Modified to render Toaster only on client */}
+        {isClient && <Toaster />} {/* Render Toaster only on client-side after mount */}
       </body>
     </html>
   );

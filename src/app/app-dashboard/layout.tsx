@@ -7,14 +7,14 @@ import { usePathname, useRouter } from 'next/navigation';
 import React, { useEffect, useState } from 'react';
 import { 
   Home, Settings, User, LogOut, MenuSquare, 
-  CheckCircle, Users, LineChart, History, // Manager icons
+  Users, CheckCircle, LineChart, History, // Manager icons (Users for Role Management)
   UserCog, Send, ListChecks, // Supervisor icons
-  ClipboardList, Bell as BellIcon, Palette, KeyRound, Shield // Staff icons (Bell, Palette, KeyRound are generic)
+  ClipboardList, Bell as BellIcon, Palette, KeyRound, Shield // Staff icons & generic
 } from 'lucide-react';
-import { onAuthStateChanged, signOut, User as FirebaseUser } from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
-import { auth, db } from '@/lib/firebase';
-
+// Firebase imports removed
+// import { onAuthStateChanged, signOut, User as FirebaseUser } from 'firebase/auth';
+// import { doc, getDoc } from 'firebase/firestore';
+// import { auth, db } from '@/lib/firebase';
 
 import {
   SidebarProvider,
@@ -31,7 +31,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
-
+import { useToast } from '@/hooks/use-toast';
 
 enum UserRole {
   MANAGER = "manager",
@@ -41,78 +41,54 @@ enum UserRole {
   NONE = "none",
 }
 
-// Helper function to determine the page title
 const getPageTitle = (pathname: string): string => {
+  const parts = pathname.split('/').filter(Boolean);
+  const lastPart = parts[parts.length - 1];
+
   if (pathname === '/app-dashboard') return 'Dashboard';
-  if (pathname === '/app-dashboard/profile') return 'Profile';
-  if (pathname === '/app-dashboard/settings') return 'Settings';
-  if (pathname === '/app-dashboard/role-management') return 'Role Management';
-  if (pathname === '/app-dashboard/staff-management') return 'Staff Management';
-  if (pathname === '/app-dashboard/approval-requests') return 'Approval Requests';
-  if (pathname === '/app-dashboard/activity-overview') return 'Activity Overview';
-  if (pathname === '/app-dashboard/audit-trail') return 'Audit Trail';
-  if (pathname === '/app-dashboard/my-tasks') return 'My Tasks';
-  if (pathname === '/app-dashboard/notifications') return 'Notifications';
-  if (pathname === '/app-dashboard/activity-tracking') return 'Activity Tracking';
-  if (pathname === '/app-dashboard/dev-tools') return 'Developer Tools';
-  return 'Meal Villa'; // Default title
+  
+  if (lastPart) {
+    return lastPart
+      .split('-')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ');
+  }
+  return 'Meal Villa'; 
 };
 
 export default function AppDashboardLayout({ children }: { children: ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
+  const { toast } = useToast();
   const [currentUserRole, setCurrentUserRole] = useState<UserRole>(UserRole.NONE);
   const [staffId, setStaffId] = useState<string | null>(null);
-  const [authUser, setAuthUser] = useState<FirebaseUser | null>(null);
+  // FirebaseUser state removed: const [authUser, setAuthUser] = useState<FirebaseUser | null>(null);
   const [isLoadingRole, setIsLoadingRole] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (user) {
-        setAuthUser(user);
-        // Fetch user role from Firestore
-        try {
-          const userDocRef = doc(db, "users", user.uid);
-          const userDocSnap = await getDoc(userDocRef);
+    setIsLoadingRole(true);
+    const roleFromStorage = localStorage.getItem("userRole") as UserRole | null;
+    const staffIdFromStorage = localStorage.getItem("staffId");
 
-          if (userDocSnap.exists()) {
-            const userData = userDocSnap.data();
-            setCurrentUserRole(userData.role as UserRole || UserRole.NONE);
-            setStaffId(userData.staffId || null);
-          } else {
-            console.warn("User document not found in Firestore for UID:", user.uid);
-            setCurrentUserRole(UserRole.NONE); // Or handle as an error
-            // Potentially sign out user if role is critical and not found
-            // await signOut(auth); 
-            // router.push('/login');
-          }
-        } catch (error) {
-          console.error("Error fetching user role from Firestore:", error);
-          setCurrentUserRole(UserRole.NONE);
-          // Potentially sign out user
-          // await signOut(auth);
-          // router.push('/login');
-        }
-      } else {
-        setAuthUser(null);
-        setCurrentUserRole(UserRole.NONE);
-        setStaffId(null);
-        router.push('/login'); // Redirect if no user
-      }
-      setIsLoadingRole(false);
-    });
-
-    return () => unsubscribe(); // Cleanup subscription on unmount
+    if (roleFromStorage && staffIdFromStorage) {
+      setCurrentUserRole(roleFromStorage);
+      setStaffId(staffIdFromStorage);
+    } else {
+      setCurrentUserRole(UserRole.NONE);
+      setStaffId(null);
+      router.push('/login'); // Redirect if no role/staffId in localStorage
+    }
+    setIsLoadingRole(false);
   }, [router]);
 
-  const handleLogout = async () => {
-    try {
-      await signOut(auth);
-      // router.push('/login'); // onAuthStateChanged will handle redirect
-    } catch (error) {
-      console.error("Error signing out: ", error);
-      // Optionally show a toast notification for logout error
-    }
+  const handleLogout = () => {
+    localStorage.removeItem("userRole");
+    localStorage.removeItem("staffId");
+    // localStorage.removeItem("authUser"); // If it was ever set
+    setCurrentUserRole(UserRole.NONE);
+    setStaffId(null);
+    toast({title: "Logged Out", description: "You have been successfully logged out."});
+    router.push('/login');
   };
 
   const pageTitle = getPageTitle(pathname);
@@ -124,19 +100,23 @@ export default function AppDashboardLayout({ children }: { children: ReactNode }
           <Skeleton className="h-12 w-12 rounded-full" />
           <Skeleton className="h-4 w-[250px]" />
           <Skeleton className="h-4 w-[200px]" />
+          <p>Loading user session...</p>
         </div>
       </div>
     );
   }
   
-  const isManager = currentUserRole === UserRole.MANAGER || currentUserRole === UserRole.DEVELOPER;
+  const isManager = currentUserRole === UserRole.MANAGER;
   const isSupervisor = currentUserRole === UserRole.SUPERVISOR;
   const isStaff = currentUserRole === UserRole.STAFF;
+  const isDeveloper = currentUserRole === UserRole.DEVELOPER;
 
-
-  const userEmail = authUser?.email || (staffId ? `${staffId}@mealvilla.com` : "user@mealvilla.com");
-  const userName = currentUserRole !== UserRole.NONE ? `${currentUserRole.charAt(0).toUpperCase() + currentUserRole.slice(1)} User` : "User";
-  const avatarFallback = userName.substring(0,2).toUpperCase();
+  // Using staffId for email and name display as per pre-Firebase logic
+  const userEmailDisplay = staffId ? `${staffId}@mealvilla.com` : "user@mealvilla.com";
+  const userNameDisplay = currentUserRole !== UserRole.NONE 
+    ? `${currentUserRole.charAt(0).toUpperCase() + currentUserRole.slice(1)} User (ID: ${staffId || 'N/A'})` 
+    : "User";
+  const avatarFallback = userNameDisplay.substring(0,2).toUpperCase();
 
   return (
     <SidebarProvider defaultOpen>
@@ -172,7 +152,7 @@ export default function AppDashboardLayout({ children }: { children: ReactNode }
               </SidebarMenuItem>
 
               {/* Developer/Manager Specific Links */}
-              {(isManager) && (
+              {(isManager || isDeveloper) && (
                 <>
                   <SidebarMenuItem>
                     <SidebarMenuButton href="/app-dashboard/role-management" tooltip="Role Management" isActive={pathname === '/app-dashboard/role-management'}>
@@ -182,7 +162,7 @@ export default function AppDashboardLayout({ children }: { children: ReactNode }
                   </SidebarMenuItem>
                   <SidebarMenuItem>
                     <SidebarMenuButton href="/app-dashboard/staff-management" tooltip="Staff Management" isActive={pathname === '/app-dashboard/staff-management'}>
-                      <Users />
+                      <Users /> 
                       <span>Staff Management</span>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
@@ -204,7 +184,7 @@ export default function AppDashboardLayout({ children }: { children: ReactNode }
                       <span>Audit Trail</span>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
-                   {currentUserRole === UserRole.DEVELOPER && (
+                   {isDeveloper && (
                      <SidebarMenuItem>
                        <SidebarMenuButton href="/app-dashboard/dev-tools" tooltip="Developer Tools" isActive={pathname === '/app-dashboard/dev-tools'}>
                          <Shield />
@@ -250,7 +230,7 @@ export default function AppDashboardLayout({ children }: { children: ReactNode }
                   </SidebarMenuItem>
                   <SidebarMenuItem>
                     <SidebarMenuButton href="/app-dashboard/notifications" tooltip="Notifications" isActive={pathname === '/app-dashboard/notifications'}>
-                      <BellIcon />
+                      <BellIcon /> {/* Using aliased BellIcon */}
                       <span>Notifications</span>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
@@ -267,8 +247,8 @@ export default function AppDashboardLayout({ children }: { children: ReactNode }
                 <AvatarFallback>{avatarFallback}</AvatarFallback>
               </Avatar>
               <div className="group-data-[collapsible=icon]:hidden">
-                <p className="text-sm font-medium">{userName}</p>
-                <p className="text-xs text-muted-foreground">{userEmail}</p>
+                <p className="text-sm font-medium truncate max-w-[120px]">{userNameDisplay}</p>
+                <p className="text-xs text-muted-foreground truncate max-w-[120px]">{userEmailDisplay}</p>
               </div>
             </div>
           </SidebarFooter>

@@ -1,5 +1,6 @@
 
 // src/lib/firebase.ts
+/*
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
@@ -25,3 +26,9 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 
 export { app, auth, db };
+*/
+
+// Firebase is not used in the mock setup. 
+// You can uncomment the above if you decide to reintegrate Firebase.
+export {}; // Add an empty export to make this a module and avoid errors if no other exports.
+
