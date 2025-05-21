@@ -4,24 +4,43 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Users } from "lucide-react";
 import React, { useEffect, useState } from 'react';
+import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
+import { doc, getDoc } from 'firebase/firestore';
+import { auth, db } from '@/lib/firebase';
 
 enum UserRole {
   MANAGER = "manager",
   SUPERVISOR = "supervisor",
   DEVELOPER = "developer",
+  STAFF = "staff", // Added for completeness
   NONE = "none",
 }
 
 export default function StaffManagementPage() {
   const [currentUserRole, setCurrentUserRole] = useState<UserRole>(UserRole.NONE);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const storedRole = localStorage.getItem("userRole") as UserRole | null;
-      if (storedRole) {
-        setCurrentUserRole(storedRole);
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        try {
+          const userDocRef = doc(db, "users", user.uid);
+          const userDocSnap = await getDoc(userDocRef);
+          if (userDocSnap.exists()) {
+            setCurrentUserRole(userDocSnap.data().role as UserRole || UserRole.NONE);
+          } else {
+            setCurrentUserRole(UserRole.NONE);
+          }
+        } catch (error) {
+          console.error("Error fetching user role:", error);
+          setCurrentUserRole(UserRole.NONE);
+        }
+      } else {
+        setCurrentUserRole(UserRole.NONE);
       }
-    }
+      setIsLoading(false);
+    });
+    return () => unsubscribe();
   }, []);
 
   const descriptionText = () => {
@@ -33,6 +52,10 @@ export default function StaffManagementPage() {
     }
     return "Staff management interface.";
   };
+
+  if (isLoading) {
+    return <div className="flex justify-center items-center h-full"><p>Loading...</p></div>;
+  }
 
 
   return (

@@ -5,8 +5,10 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
 import { useRouter } from "next/navigation";
-import { Lock, Badge, Eye, EyeOff, UserCircle } from "lucide-react"; // Added UserCircle
-import React, { useState, useEffect } from "react"; 
+import { Lock, Badge, Eye, EyeOff, UserCircle } from "lucide-react";
+import React, { useState, useEffect } from "react";
+import { signInWithEmailAndPassword } from "firebase/auth";
+import { auth } from "@/lib/firebase"; // Import Firebase auth instance
 
 import { Button } from "@/components/ui/button";
 import {
@@ -21,21 +23,16 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
-// Define roles
-enum UserRole {
-  MANAGER = "manager",
-  SUPERVISOR = "supervisor",
-  STAFF = "staff",
-  DEVELOPER = "developer", // SuperAdmin effectively
-}
+// UserRole enum is no longer needed here as roles are fetched from Firestore
+// enum UserRole {
+//   MANAGER = "manager",
+//   SUPERVISOR = "supervisor",
+//   STAFF = "staff",
+//   DEVELOPER = "developer", 
+// }
 
-// Hardcoded users for simulation
-const mockUsers: Record<string, { passwordPlain: string; role: UserRole }> = {
-  "111111": { passwordPlain: "password", role: UserRole.MANAGER },
-  "222222": { passwordPlain: "password", role: UserRole.SUPERVISOR },
-  "333333": { passwordPlain: "password", role: UserRole.STAFF }, // e.g., Baker
-  "000000": { passwordPlain: "superpassword", role: UserRole.DEVELOPER },
-};
+// Mock users are removed, authentication is handled by Firebase
+// const mockUsers: Record<string, { passwordPlain: string; role: UserRole }> = { ... };
 
 const loginFormSchema = z.object({
   staffId: z.string().regex(/^\d{6}$/, { message: "Staff ID must be exactly 6 digits." }),
@@ -49,14 +46,15 @@ export default function LoginPage() {
   const { toast } = useToast();
   const [showPassword, setShowPassword] = useState(false);
 
-  // Redirect if already logged in
+  // Redirect if already logged in (Firebase auth state will handle this in layout)
+  // It's good to keep this for an initial client-side check if desired, but layout's auth check is primary
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const storedRole = localStorage.getItem("userRole");
-      if (storedRole) {
+    const unsubscribe = auth.onAuthStateChanged(user => {
+      if (user) {
         router.push("/app-dashboard");
       }
-    }
+    });
+    return () => unsubscribe();
   }, [router]);
 
   const form = useForm<LoginFormValues>({
@@ -68,34 +66,38 @@ export default function LoginPage() {
   });
 
   async function onSubmit(values: LoginFormValues) {
-    // Simulate API call & role check
-    await new Promise((resolve) => setTimeout(resolve, 1000));
+    const email = `${values.staffId}@mealvilla.com`; // Construct email from Staff ID
+    const password = values.password;
 
-    const user = mockUsers[values.staffId];
-
-    if (user && user.passwordPlain === values.password) {
-      if (typeof window !== 'undefined') {
-        localStorage.setItem("userRole", user.role);
-        localStorage.setItem("staffId", values.staffId); // Optionally store staffId
-      }
+    try {
+      await signInWithEmailAndPassword(auth, email, password);
       
       toast({
         title: "Login Successful!",
-        description: `Welcome back! Role: ${user.role.toUpperCase()}`,
+        description: "Welcome back! Redirecting to dashboard...",
         variant: "default",
       });
 
-      // Wait for toast to be visible before navigating
-      setTimeout(() => {
-        router.push("/app-dashboard"); // All roles go to app-dashboard, layout handles view
-      }, 1500);
-    } else {
+      // Firebase onAuthStateChanged in layout will handle fetching roles and redirecting
+      // setTimeout(() => {
+      //   router.push("/app-dashboard"); 
+      // }, 1500);
+      // No explicit redirect here, let onAuthStateChanged in layout handle it after role fetching
+
+    } catch (error: any) {
+      console.error("Firebase Authentication Error:", error);
+      let errorMessage = "Invalid Staff ID or Password.";
+      if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
+        errorMessage = "Invalid Staff ID or Password.";
+      } else if (error.code === 'auth/invalid-email') {
+        errorMessage = "Invalid Staff ID format.";
+      }
       toast({
         title: "Login Failed",
-        description: "Invalid Staff ID or Password.",
+        description: errorMessage,
         variant: "destructive",
       });
-      form.reset(); // Clear form on failed login
+      form.reset();
     }
   }
 

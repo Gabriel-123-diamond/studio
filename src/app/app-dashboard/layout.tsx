@@ -11,6 +11,10 @@ import {
   UserCog, Send, ListChecks, // Supervisor icons
   ClipboardList, Bell as BellIcon, Palette, KeyRound, Shield // Staff icons (Bell, Palette, KeyRound are generic)
 } from 'lucide-react';
+import { onAuthStateChanged, signOut, User as FirebaseUser } from 'firebase/auth';
+import { doc, getDoc } from 'firebase/firestore';
+import { auth, db } from '@/lib/firebase';
+
 
 import {
   SidebarProvider,
@@ -59,28 +63,56 @@ export default function AppDashboardLayout({ children }: { children: ReactNode }
   const pathname = usePathname();
   const [currentUserRole, setCurrentUserRole] = useState<UserRole>(UserRole.NONE);
   const [staffId, setStaffId] = useState<string | null>(null);
+  const [authUser, setAuthUser] = useState<FirebaseUser | null>(null);
   const [isLoadingRole, setIsLoadingRole] = useState(true);
 
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const storedRole = localStorage.getItem("userRole") as UserRole | null;
-      const storedStaffId = localStorage.getItem("staffId");
-      if (storedRole) {
-        setCurrentUserRole(storedRole);
-        if (storedStaffId) setStaffId(storedStaffId);
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        setAuthUser(user);
+        // Fetch user role from Firestore
+        try {
+          const userDocRef = doc(db, "users", user.uid);
+          const userDocSnap = await getDoc(userDocRef);
+
+          if (userDocSnap.exists()) {
+            const userData = userDocSnap.data();
+            setCurrentUserRole(userData.role as UserRole || UserRole.NONE);
+            setStaffId(userData.staffId || null);
+          } else {
+            console.warn("User document not found in Firestore for UID:", user.uid);
+            setCurrentUserRole(UserRole.NONE); // Or handle as an error
+            // Potentially sign out user if role is critical and not found
+            // await signOut(auth); 
+            // router.push('/login');
+          }
+        } catch (error) {
+          console.error("Error fetching user role from Firestore:", error);
+          setCurrentUserRole(UserRole.NONE);
+          // Potentially sign out user
+          // await signOut(auth);
+          // router.push('/login');
+        }
       } else {
-        router.push('/login'); // Redirect if no role
+        setAuthUser(null);
+        setCurrentUserRole(UserRole.NONE);
+        setStaffId(null);
+        router.push('/login'); // Redirect if no user
       }
       setIsLoadingRole(false);
-    }
+    });
+
+    return () => unsubscribe(); // Cleanup subscription on unmount
   }, [router]);
 
-  const handleLogout = () => {
-    if (typeof window !== 'undefined') {
-      localStorage.removeItem("userRole");
-      localStorage.removeItem("staffId");
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      // router.push('/login'); // onAuthStateChanged will handle redirect
+    } catch (error) {
+      console.error("Error signing out: ", error);
+      // Optionally show a toast notification for logout error
     }
-    router.push('/login');
   };
 
   const pageTitle = getPageTitle(pathname);
@@ -102,7 +134,7 @@ export default function AppDashboardLayout({ children }: { children: ReactNode }
   const isStaff = currentUserRole === UserRole.STAFF;
 
 
-  const userEmail = staffId ? `${staffId}@mealvilla.com` : "user@mealvilla.com";
+  const userEmail = authUser?.email || (staffId ? `${staffId}@mealvilla.com` : "user@mealvilla.com");
   const userName = currentUserRole !== UserRole.NONE ? `${currentUserRole.charAt(0).toUpperCase() + currentUserRole.slice(1)} User` : "User";
   const avatarFallback = userName.substring(0,2).toUpperCase();
 

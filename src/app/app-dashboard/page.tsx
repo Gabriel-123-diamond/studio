@@ -4,6 +4,10 @@
 import React, { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from '@/components/ui/skeleton';
+import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
+import { doc, getDoc } from 'firebase/firestore';
+import { auth, db } from '@/lib/firebase';
+
 
 enum UserRole {
   MANAGER = "manager",
@@ -18,14 +22,28 @@ export default function AppDashboardPage() {
   const [isLoadingRole, setIsLoadingRole] = useState(true);
 
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const storedRole = localStorage.getItem("userRole") as UserRole | null;
-      if (storedRole) {
-        setCurrentUserRole(storedRole);
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        try {
+          const userDocRef = doc(db, "users", user.uid);
+          const userDocSnap = await getDoc(userDocRef);
+          if (userDocSnap.exists()) {
+            setCurrentUserRole(userDocSnap.data().role as UserRole || UserRole.NONE);
+          } else {
+            setCurrentUserRole(UserRole.NONE);
+          }
+        } catch (error) {
+          console.error("Error fetching user role:", error);
+          setCurrentUserRole(UserRole.NONE);
+        }
+      } else {
+        setCurrentUserRole(UserRole.NONE); // Should be redirected by layout if no user
       }
       setIsLoadingRole(false);
-    }
+    });
+    return () => unsubscribe();
   }, []);
+
 
   const getWelcomeMessage = () => {
     switch (currentUserRole) {
@@ -131,6 +149,7 @@ export default function AppDashboardPage() {
           { (currentUserRole === UserRole.NONE || (!isManager && !isSupervisor && !isStaff && !isDeveloper)) && (
              <div className="mt-8 text-center text-muted-foreground">
                 <p>No specific dashboard view for your current role or role not identified.</p>
+                <p>Ensure you are logged in and your role is correctly set up in Firebase.</p>
              </div>
           )}
 
