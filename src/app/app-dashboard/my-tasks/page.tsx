@@ -26,7 +26,7 @@ export default function MyTasksPage() {
           <p className="text-lg">This is your personal task board. Here you can see all tasks assigned to you by your Supervisor, fetched from Firestore.</p>
           <p className="mt-2 text-muted-foreground">You'll be able to view task details, deadlines, and submit updates or mark tasks as completed.</p>
           
-          <div className="mt-8 p-8 border border-dashed border-muted-foreground/50 rounded-lg text-center">
+          <div className="mt-8 mb-8 p-8 border border-dashed border-muted-foreground/50 rounded-lg text-center"> {/* Added mb-8 for space */}
              <div className="flex justify-center items-center mb-4">
                 <CheckSquare className="h-12 w-12 text-primary/70" />
             </div>

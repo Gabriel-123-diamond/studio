@@ -9,7 +9,7 @@ import {
   Home, Settings, User, LogOut, MenuSquare, 
   Users, CheckCircle, LineChart, History, Shield, // Manager/Dev icons
   UserCog, Send, ListChecks, // Supervisor icons
-  ClipboardList, Bell as BellIcon // Staff icons
+  ClipboardList, Bell as BellIcon, ClipboardPenLine // Staff icons (ClipboardPenLine for Sales Entry)
 } from 'lucide-react';
 import { auth, db } from "@/lib/firebase";
 import { onAuthStateChanged, signOut as firebaseSignOut, type User as FirebaseUser } from "firebase/auth";
@@ -154,7 +154,7 @@ export default function AppDashboardLayout({ children }: { children: ReactNode }
     const managerRoutes = ['/app-dashboard/role-management', '/app-dashboard/activity-overview', '/app-dashboard/audit-trail'];
     const devRoutes = ['/app-dashboard/dev-tools'];
     const supervisorRoutes = ['/app-dashboard/activity-tracking'];
-    const staffRoutes = ['/app-dashboard/my-tasks', '/app-dashboard/notifications'];
+    const staffRoutes = ['/app-dashboard/my-tasks', '/app-dashboard/notifications', '/app-dashboard/sales-entry'];
     const sharedApprovalRoute = '/app-dashboard/approval-requests';
     const sharedStaffManagementRoute = '/app-dashboard/staff-management';
 
@@ -296,6 +296,12 @@ export default function AppDashboardLayout({ children }: { children: ReactNode }
                       <span>Notifications</span>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton href="/app-dashboard/sales-entry" tooltip="Sales Entry" isActive={pathname === '/app-dashboard/sales-entry'}>
+                      <ClipboardPenLine />
+                      <span>Sales Entry</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
                 </>
               )}
 
@@ -349,4 +355,3 @@ export default function AppDashboardLayout({ children }: { children: ReactNode }
     </SidebarProvider>
   );
 }
-
