@@ -31,6 +31,7 @@ import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'; // Added for error display
 
 enum UserRole {
   MANAGER = "manager",
@@ -69,7 +70,7 @@ export default function AppDashboardLayout({ children }: { children: ReactNode }
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
         setFirebaseUser(user);
-        setUserEmail(user.email); // Get email from Firebase user
+        setUserEmail(user.email); 
         try {
           const userDocRef = doc(db, "users", user.uid);
           const userDocSnap = await getDoc(userDocRef);
@@ -77,19 +78,23 @@ export default function AppDashboardLayout({ children }: { children: ReactNode }
             const userData = userDocSnap.data();
             setCurrentUserRole(userData.role as UserRole || UserRole.NONE);
             setStaffId(userData.staffId || null);
+            if (!userData.role) {
+                 console.warn("User document in Firestore is missing 'role' field for UID:", user.uid);
+            }
           } else {
             console.error("User document not found in Firestore for UID:", user.uid);
+            toast({ title: "User Data Error", description: "Your user details could not be found. Please contact support.", variant: "destructive" });
             setCurrentUserRole(UserRole.NONE);
             setStaffId(null);
-            // Optionally sign out user if Firestore doc is missing
-            // await firebaseSignOut(auth); 
+             // Potentially sign out user if crucial data is missing
+            // await firebaseSignOut(auth);
             // router.push('/login');
           }
         } catch (error) {
           console.error("Error fetching user role from Firestore:", error);
+          toast({ title: "Session Error", description: "Could not retrieve user details. Please try again.", variant: "destructive" });
           setCurrentUserRole(UserRole.NONE);
           setStaffId(null);
-          // toast({ title: "Error", description: "Could not fetch user details.", variant: "destructive" });
         }
       } else {
         setCurrentUserRole(UserRole.NONE);
@@ -101,7 +106,7 @@ export default function AppDashboardLayout({ children }: { children: ReactNode }
       setIsLoadingSession(false);
     });
     return () => unsubscribe();
-  }, [router]);
+  }, [router, toast]);
 
   const handleLogout = async () => {
     try {
@@ -124,10 +129,11 @@ export default function AppDashboardLayout({ children }: { children: ReactNode }
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
         <div className="flex flex-col items-center space-y-4">
-          <Skeleton className="h-12 w-12 rounded-full" />
-          <Skeleton className="h-4 w-[250px]" />
-          <Skeleton className="h-4 w-[200px]" />
-          <p>Loading user session...</p>
+          <svg className="animate-spin h-10 w-10 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+          </svg>
+          <p className="text-lg text-muted-foreground">Loading your Meal Villa experience...</p>
         </div>
       </div>
     );
@@ -143,15 +149,49 @@ export default function AppDashboardLayout({ children }: { children: ReactNode }
     ? `${currentUserRole.charAt(0).toUpperCase() + currentUserRole.slice(1)} (ID: ${staffId})`
     : firebaseUser ? `${currentUserRole.charAt(0).toUpperCase() + currentUserRole.slice(1)} User` : "User";
   const avatarFallback = userNameDisplay.substring(0,2).toUpperCase();
+  
+  const canAccessPage = () => {
+    if (isLoadingSession) return true; // Still loading, don't deny yet
+    if (currentUserRole === UserRole.NONE && !(pathname === '/app-dashboard/profile' || pathname === '/app-dashboard/settings')) return false;
+    
+    const managerRoutes = ['/app-dashboard/role-management', '/app-dashboard/activity-overview', '/app-dashboard/audit-trail'];
+    const devRoutes = ['/app-dashboard/dev-tools'];
+    const supervisorRoutes = ['/app-dashboard/activity-tracking'];
+    const staffRoutes = ['/app-dashboard/my-tasks', '/app-dashboard/notifications'];
+    // Shared routes accessible by multiple roles based on logic below
+    const sharedApprovalRoute = '/app-dashboard/approval-requests';
+    const sharedStaffManagementRoute = '/app-dashboard/staff-management';
+
+
+    if (isDeveloper) return true; // Developer can access everything
+
+    if (isManager) {
+      if (devRoutes.includes(pathname)) return false; // Manager cannot access pure dev routes
+      return true; // Manager can access their routes, shared routes, and common routes
+    }
+    if (isSupervisor) {
+      if (managerRoutes.includes(pathname) || devRoutes.includes(pathname)) return false;
+      if (pathname === sharedApprovalRoute || pathname === sharedStaffManagementRoute || supervisorRoutes.includes(pathname)) return true;
+    }
+    if (isStaff) {
+      if (managerRoutes.includes(pathname) || devRoutes.includes(pathname) || supervisorRoutes.includes(pathname) || pathname === sharedApprovalRoute || pathname === sharedStaffManagementRoute) return false;
+      if (staffRoutes.includes(pathname)) return true;
+    }
+    // Allow common routes (dashboard, profile, settings)
+    if (pathname === '/app-dashboard' || pathname === '/app-dashboard/profile' || pathname === '/app-dashboard/settings') return true;
+
+    return false; // Deny by default if no role matches
+  };
+
 
   return (
     <SidebarProvider defaultOpen>
       <div className="flex min-h-screen bg-background">
         <Sidebar collapsible="icon" side="left" variant="sidebar" className="border-r">
           <SidebarHeader className="p-4">
-            <Link href="/app-dashboard" className="flex items-center gap-2 group-data-[collapsible=icon]:justify-center">
-              <MenuSquare className="h-8 w-8 text-primary group-data-[collapsible=icon]:h-6 group-data-[collapsible=icon]:w-6" />
-              <span className="text-xl font-semibold text-primary group-data-[collapsible=icon]:hidden">Meal Villa</span>
+            <Link href="/app-dashboard" className="flex items-center gap-2 group-data-[collapsible=icon]/sidebar-internal:justify-center">
+              <MenuSquare className="h-8 w-8 text-primary group-data-[collapsible=icon]/sidebar-internal:h-6 group-data-[collapsible=icon]/sidebar-internal:w-6" />
+              <span className="text-xl font-semibold text-primary group-data-[collapsible=icon]/sidebar-internal:hidden">Meal Villa</span>
             </Link>
           </SidebarHeader>
 
@@ -222,7 +262,7 @@ export default function AppDashboardLayout({ children }: { children: ReactNode }
               )}
 
               {/* Supervisor Specific Links */}
-              {isSupervisor && (
+              {isSupervisor && !isManager && !isDeveloper && ( // Ensure these don't overlap with manager if a user somehow has both
                 <>
                   <SidebarMenuItem>
                     <SidebarMenuButton href="/app-dashboard/staff-management" tooltip="Manage My Staff" isActive={pathname === '/app-dashboard/staff-management'}>
@@ -246,7 +286,7 @@ export default function AppDashboardLayout({ children }: { children: ReactNode }
               )}
               
               {/* Staff Specific Links */}
-              {isStaff && (
+              {isStaff && !isManager && !isDeveloper && !isSupervisor && (
                 <>
                   <SidebarMenuItem>
                     <SidebarMenuButton href="/app-dashboard/my-tasks" tooltip="My Tasks" isActive={pathname === '/app-dashboard/my-tasks'}>
@@ -267,12 +307,12 @@ export default function AppDashboardLayout({ children }: { children: ReactNode }
           </SidebarContent>
 
           <SidebarFooter className="p-4 border-t">
-            <div className="flex items-center gap-3 group-data-[collapsible=icon]:justify-center">
-              <Avatar className="h-9 w-9 group-data-[collapsible=icon]:h-7 group-data-[collapsible=icon]:w-7">
+            <div className="flex items-center gap-3 group-data-[collapsible=icon]/sidebar-internal:justify-center">
+              <Avatar className="h-9 w-9 group-data-[collapsible=icon]/sidebar-internal:h-7 group-data-[collapsible=icon]/sidebar-internal:w-7">
                 <AvatarImage src="https://placehold.co/100x100.png" alt="User Avatar" data-ai-hint="user avatar" />
                 <AvatarFallback>{avatarFallback}</AvatarFallback>
               </Avatar>
-              <div className="group-data-[collapsible=icon]:hidden">
+              <div className="group-data-[collapsible=icon]/sidebar-internal:hidden">
                 <p className="text-sm font-medium truncate max-w-[120px]">{userNameDisplay}</p>
                 <p className="text-xs text-muted-foreground truncate max-w-[120px]">{userEmailDisplay}</p>
               </div>
@@ -293,22 +333,19 @@ export default function AppDashboardLayout({ children }: { children: ReactNode }
           </header>
 
           <main className="flex-1 overflow-y-auto p-6">
-            {currentUserRole !== UserRole.NONE ? children : 
-              (pathname === '/app-dashboard/profile' || pathname === '/app-dashboard/settings') ? children : null 
-              // Allow profile/settings even if role fetching fails, but other pages rely on role
-            }
-             {currentUserRole === UserRole.NONE && !(pathname === '/app-dashboard/profile' || pathname === '/app-dashboard/settings') && !isLoadingSession && (
-              <div className="w-full">
-                <Card className="shadow-lg rounded-lg">
-                  <CardHeader className="p-6 bg-muted/30 rounded-t-lg">
-                    <CardTitle className="text-2xl text-destructive">Access Denied or Session Error</CardTitle>
-                  </CardHeader>
-                  <CardContent className="p-6">
-                    <p>Your user role could not be determined or you are not authorized to view this page.</p>
-                    <p>Please try logging out and logging back in. If the issue persists, contact an administrator.</p>
-                  </CardContent>
-                </Card>
-              </div>
+            {canAccessPage() ? children : (
+                <div className="w-full">
+                    <Card className="shadow-lg rounded-lg border-destructive">
+                        <CardHeader className="p-6 bg-destructive/10 rounded-t-lg">
+                            <CardTitle className="text-2xl text-destructive">Access Denied</CardTitle>
+                        </CardHeader>
+                        <CardContent className="p-6">
+                            <p className="text-lg text-destructive-foreground">You do not have permission to view this page.</p>
+                            <p className="mt-2 text-muted-foreground">Your current role is <span className="font-semibold">{currentUserRole}</span>. Please contact an administrator if you believe this is an error.</p>
+                            <Button onClick={() => router.push('/app-dashboard')} className="mt-4 rounded-md">Go to Dashboard</Button>
+                        </CardContent>
+                    </Card>
+                </div>
             )}
           </main>
         </SidebarInset>
