@@ -7,11 +7,14 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import React, { useEffect } from "react";
 import { auth } from "@/lib/firebase";
+import { signOut as firebaseSignOut } from "firebase/auth";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useToast } from "@/hooks/use-toast";
 
 export default function DashboardPage() {
   const router = useRouter();
   const [loading, setLoading] = React.useState(true);
+  const { toast } = useToast();
 
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged(user => {
@@ -23,6 +26,24 @@ export default function DashboardPage() {
     });
     return () => unsubscribe();
   }, [router]);
+
+  const handleLogoutAndRedirect = async () => {
+    try {
+      await firebaseSignOut(auth);
+      toast({
+        title: "Logged Out",
+        description: "You have been successfully logged out.",
+      });
+      router.push('/login');
+    } catch (error) {
+      console.error("Error signing out:", error);
+      toast({
+        title: "Logout Failed",
+        description: "Could not sign out. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
 
   if (loading) {
     return (
@@ -58,8 +79,12 @@ export default function DashboardPage() {
             You have successfully logged in. Proceed to your main application dashboard.
           </p>
           <div className="flex flex-col sm:flex-row justify-center items-center space-y-4 sm:space-y-0 sm:space-x-4">
-            <Button asChild variant="outline" className="w-full sm:w-auto border-primary text-primary hover:bg-primary/10 rounded-md">
-              <Link href="/login">Back to Login</Link>
+            <Button 
+              variant="outline" 
+              className="w-full sm:w-auto border-primary text-primary hover:bg-primary/10 rounded-md"
+              onClick={handleLogoutAndRedirect}
+            >
+              Back to Login
             </Button>
             <Button asChild className="w-full sm:w-auto bg-primary text-primary-foreground hover:bg-primary/90 rounded-md">
               <Link href="/app-dashboard">Proceed to App Dashboard</Link>
