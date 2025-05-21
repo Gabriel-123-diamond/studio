@@ -7,8 +7,9 @@ import * as z from "zod";
 import { useRouter } from "next/navigation";
 import { Lock, Badge, Eye, EyeOff, UserCircle } from "lucide-react";
 import React, { useState, useEffect } from "react";
-import { signInWithEmailAndPassword } from "firebase/auth";
-import { auth } from "@/lib/firebase"; // Import Firebase auth instance
+import { signInWithEmailAndPassword, type User as FirebaseUser } from "firebase/auth";
+import { doc, getDoc } from "firebase/firestore";
+import { auth, db } from "@/lib/firebase"; 
 
 import { Button } from "@/components/ui/button";
 import {
@@ -36,7 +37,6 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Redirect if user is already logged in (handled by app-dashboard layout)
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged(user => {
       if (user) {
@@ -56,24 +56,43 @@ export default function LoginPage() {
 
   async function onSubmit(values: LoginFormValues) {
     setIsSubmitting(true);
-    const email = `${values.staffId}@mealvilla.com`; // Construct email from Staff ID
+    const email = `${values.staffId}@mealvilla.com`; 
     const password = values.password;
 
     try {
-      await signInWithEmailAndPassword(auth, email, password);
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      const firebaseUser = userCredential.user;
+      let userRole = "User"; // Default role
+
+      if (firebaseUser) {
+        try {
+          const userDocRef = doc(db, "users", firebaseUser.uid);
+          const userDocSnap = await getDoc(userDocRef);
+          if (userDocSnap.exists()) {
+            userRole = userDocSnap.data().role || "User";
+          } else {
+            console.warn("User document not found in Firestore for UID:", firebaseUser.uid);
+          }
+        } catch (docError) {
+          console.error("Error fetching user role from Firestore:", docError);
+        }
+      }
+      
+      const roleDisplay = userRole.charAt(0).toUpperCase() + userRole.slice(1);
+
       toast({
         title: "Login Successful!",
-        description: "Welcome back! Redirecting to dashboard...",
+        description: `Welcome Back! Role: ${roleDisplay}. Redirecting to dashboard...`,
         variant: "default",
       });
-      // The onAuthStateChanged listener in AppDashboardLayout will handle fetching role and redirecting
-      router.push("/dashboard"); // Go to intermediate dashboard first
+      router.push("/dashboard"); 
     } catch (error: any) {
       let errorMessage = "Login Failed. Please check your Staff ID and password.";
       if (error.code === "auth/user-not-found" || error.code === "auth/wrong-password" || error.code === "auth/invalid-credential") {
         errorMessage = "Invalid Staff ID or Password.";
       } else if (error.code === "auth/invalid-email") {
-        errorMessage = "Invalid Staff ID format.";
+        // This case should be less common now with Staff ID validation, but good to keep
+        errorMessage = "Invalid Staff ID format (ensure it's 6 digits).";
       }
       console.error("Firebase login error:", error);
       toast({
@@ -172,3 +191,5 @@ export default function LoginPage() {
     </>
   );
 }
+
+    
