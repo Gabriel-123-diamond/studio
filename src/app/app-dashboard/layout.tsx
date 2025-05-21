@@ -31,7 +31,7 @@ import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'; // Added for error display
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'; 
 
 enum UserRole {
   MANAGER = "manager",
@@ -86,9 +86,6 @@ export default function AppDashboardLayout({ children }: { children: ReactNode }
             toast({ title: "User Data Error", description: "Your user details could not be found. Please contact support.", variant: "destructive" });
             setCurrentUserRole(UserRole.NONE);
             setStaffId(null);
-             // Potentially sign out user if crucial data is missing
-            // await firebaseSignOut(auth);
-            // router.push('/login');
           }
         } catch (error) {
           console.error("Error fetching user role from Firestore:", error);
@@ -151,23 +148,22 @@ export default function AppDashboardLayout({ children }: { children: ReactNode }
   const avatarFallback = userNameDisplay.substring(0,2).toUpperCase();
   
   const canAccessPage = () => {
-    if (isLoadingSession) return true; // Still loading, don't deny yet
+    if (isLoadingSession) return true; 
     if (currentUserRole === UserRole.NONE && !(pathname === '/app-dashboard/profile' || pathname === '/app-dashboard/settings')) return false;
     
     const managerRoutes = ['/app-dashboard/role-management', '/app-dashboard/activity-overview', '/app-dashboard/audit-trail'];
     const devRoutes = ['/app-dashboard/dev-tools'];
     const supervisorRoutes = ['/app-dashboard/activity-tracking'];
     const staffRoutes = ['/app-dashboard/my-tasks', '/app-dashboard/notifications'];
-    // Shared routes accessible by multiple roles based on logic below
     const sharedApprovalRoute = '/app-dashboard/approval-requests';
     const sharedStaffManagementRoute = '/app-dashboard/staff-management';
 
 
-    if (isDeveloper) return true; // Developer can access everything
+    if (isDeveloper) return true; 
 
     if (isManager) {
-      if (devRoutes.includes(pathname)) return false; // Manager cannot access pure dev routes
-      return true; // Manager can access their routes, shared routes, and common routes
+      if (devRoutes.includes(pathname)) return false; 
+      return true; 
     }
     if (isSupervisor) {
       if (managerRoutes.includes(pathname) || devRoutes.includes(pathname)) return false;
@@ -177,21 +173,21 @@ export default function AppDashboardLayout({ children }: { children: ReactNode }
       if (managerRoutes.includes(pathname) || devRoutes.includes(pathname) || supervisorRoutes.includes(pathname) || pathname === sharedApprovalRoute || pathname === sharedStaffManagementRoute) return false;
       if (staffRoutes.includes(pathname)) return true;
     }
-    // Allow common routes (dashboard, profile, settings)
+    
     if (pathname === '/app-dashboard' || pathname === '/app-dashboard/profile' || pathname === '/app-dashboard/settings') return true;
 
-    return false; // Deny by default if no role matches
+    return false; 
   };
 
 
   return (
     <SidebarProvider defaultOpen>
       <div className="flex min-h-screen bg-background">
-        <Sidebar collapsible="icon" side="left" variant="sidebar" className="border-r">
+        <Sidebar collapsible="icon" side="left" variant="sidebar" className="border-r group/sidebar-internal">
           <SidebarHeader className="p-4">
-            <Link href="/app-dashboard" className="flex items-center gap-2 group-data-[collapsible=icon]/sidebar-internal:justify-center">
-              <MenuSquare className="h-8 w-8 text-primary group-data-[collapsible=icon]/sidebar-internal:h-6 group-data-[collapsible=icon]/sidebar-internal:w-6" />
-              <span className="text-xl font-semibold text-primary group-data-[collapsible=icon]/sidebar-internal:hidden">Meal Villa</span>
+            <Link href="/app-dashboard" className="flex items-center gap-2 group-data-[state=collapsed]/sidebar-internal:justify-center">
+              <MenuSquare className="h-8 w-8 text-primary group-data-[state=collapsed]/sidebar-internal:h-6 group-data-[state=collapsed]/sidebar-internal:w-6" />
+              <span className="text-xl font-semibold text-primary group-data-[state=collapsed]/sidebar-internal:hidden">Meal Villa</span>
             </Link>
           </SidebarHeader>
 
@@ -262,7 +258,7 @@ export default function AppDashboardLayout({ children }: { children: ReactNode }
               )}
 
               {/* Supervisor Specific Links */}
-              {isSupervisor && !isManager && !isDeveloper && ( // Ensure these don't overlap with manager if a user somehow has both
+              {isSupervisor && !isManager && !isDeveloper && ( 
                 <>
                   <SidebarMenuItem>
                     <SidebarMenuButton href="/app-dashboard/staff-management" tooltip="Manage My Staff" isActive={pathname === '/app-dashboard/staff-management'}>
@@ -307,12 +303,12 @@ export default function AppDashboardLayout({ children }: { children: ReactNode }
           </SidebarContent>
 
           <SidebarFooter className="p-4 border-t">
-            <div className="flex items-center gap-3 group-data-[collapsible=icon]/sidebar-internal:justify-center">
-              <Avatar className="h-9 w-9 group-data-[collapsible=icon]/sidebar-internal:h-7 group-data-[collapsible=icon]/sidebar-internal:w-7">
+            <div className="flex items-center gap-3 group-data-[state=collapsed]/sidebar-internal:justify-center">
+              <Avatar className="h-9 w-9 group-data-[state=collapsed]/sidebar-internal:h-7 group-data-[state=collapsed]/sidebar-internal:w-7">
                 <AvatarImage src="https://placehold.co/100x100.png" alt="User Avatar" data-ai-hint="user avatar" />
                 <AvatarFallback>{avatarFallback}</AvatarFallback>
               </Avatar>
-              <div className="group-data-[collapsible=icon]/sidebar-internal:hidden">
+              <div className="group-data-[state=collapsed]/sidebar-internal:hidden">
                 <p className="text-sm font-medium truncate max-w-[120px]">{userNameDisplay}</p>
                 <p className="text-xs text-muted-foreground truncate max-w-[120px]">{userEmailDisplay}</p>
               </div>
@@ -353,3 +349,4 @@ export default function AppDashboardLayout({ children }: { children: ReactNode }
     </SidebarProvider>
   );
 }
+
