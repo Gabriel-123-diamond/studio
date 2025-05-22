@@ -9,7 +9,7 @@ import {
   Home, Settings, User, LogOut, MenuSquare, 
   Users, CheckCircle, LineChart, History, Shield, // Manager/Dev icons
   UserCog, Send, ListChecks, // Supervisor icons
-  ClipboardList, Bell as BellIcon, ClipboardPenLine // Staff icons (ClipboardPenLine for Sales Entry)
+  Bell as BellIcon, ClipboardPenLine // Staff icons (ClipboardPenLine for Sales Entry)
 } from 'lucide-react';
 import { auth, db } from "@/lib/firebase";
 import { onAuthStateChanged, signOut as firebaseSignOut, type User as FirebaseUser } from "firebase/auth";
@@ -154,7 +154,7 @@ export default function AppDashboardLayout({ children }: { children: ReactNode }
     const managerRoutes = ['/app-dashboard/role-management', '/app-dashboard/activity-overview', '/app-dashboard/audit-trail'];
     const devRoutes = ['/app-dashboard/dev-tools'];
     const supervisorRoutes = ['/app-dashboard/activity-tracking'];
-    const staffRoutes = ['/app-dashboard/my-tasks', '/app-dashboard/notifications', '/app-dashboard/sales-entry'];
+    const staffRoutes = ['/app-dashboard/notifications', '/app-dashboard/sales-entry']; // Removed '/app-dashboard/my-tasks'
     const sharedApprovalRoute = '/app-dashboard/approval-requests';
     const sharedStaffManagementRoute = '/app-dashboard/staff-management';
 
@@ -284,12 +284,6 @@ export default function AppDashboardLayout({ children }: { children: ReactNode }
               {/* Staff Specific Links */}
               {isStaff && !isManager && !isDeveloper && !isSupervisor && (
                 <>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton href="/app-dashboard/my-tasks" tooltip="My Tasks" isActive={pathname === '/app-dashboard/my-tasks'}>
-                      <ClipboardList />
-                      <span>My Tasks</span>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
                   <SidebarMenuItem>
                     <SidebarMenuButton href="/app-dashboard/notifications" tooltip="Notifications" isActive={pathname === '/app-dashboard/notifications'}>
                       <BellIcon />
