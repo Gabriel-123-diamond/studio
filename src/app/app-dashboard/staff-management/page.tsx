@@ -155,7 +155,7 @@ export default function StaffManagementPage() {
   }, [isMounted, fetchCurrentUser]);
 
   useEffect(() => {
-    if (!isMounted || !currentUser) {
+    if (!isMounted || !currentUser || isLoadingCurrentUser) { // Added isLoadingCurrentUser check
         setIsLoadingStaffList(false);
         setStaffList([]);
         return;
@@ -166,8 +166,8 @@ export default function StaffManagementPage() {
 
     let usersQuery;
     if (currentUser.role === UserRoleEnum.MANAGER || currentUser.role === UserRoleEnum.DEVELOPER) {
-      console.log('[StaffManagementPage] Querying as Manager/Developer: Fetching ALL users, ordered by name.');
-      usersQuery = query(collection(db, "users"), orderBy("name"));
+      console.log('[StaffManagementPage] Querying as Manager/Developer: Fetching ALL users.');
+      usersQuery = query(collection(db, "users")); // Temporarily removed orderBy("name")
     } else if (currentUser.role === UserRoleEnum.SUPERVISOR) {
       console.log('[StaffManagementPage] Querying as Supervisor: Fetching users with role "staff", ordered by name.');
       usersQuery = query(collection(db, "users"), where("role", "==", UserRoleEnum.STAFF), orderBy("name"));
@@ -196,14 +196,14 @@ export default function StaffManagementPage() {
       console.error("[StaffManagementPage] Error fetching staff list from Firestore:", error);
       toast({
         title: "Error Fetching Staff",
-        description: "Could not fetch staff list. CRITICAL: Open browser developer console (F12, then Console tab) to see the full Firebase error message. This message often includes a link to create a required Firestore index or indicates a permissions issue.",
+        description: "CRITICAL: Open browser developer console (F12, then Console tab) to see the full Firebase error message. This message often includes a link to create a required Firestore index or indicates a permissions issue.",
         variant: "destructive",
         duration: 15000, 
       });
       setIsLoadingStaffList(false);
     });
     return () => unsubscribe();
-  }, [isMounted, currentUser, toast]);
+  }, [isMounted, currentUser, toast, isLoadingCurrentUser]); // Added isLoadingCurrentUser
 
   const canManageUsers = useMemo(() => currentUser?.role === UserRoleEnum.MANAGER || currentUser?.role === UserRoleEnum.DEVELOPER, [currentUser]);
   const isSupervisor = useMemo(() => currentUser?.role === UserRoleEnum.SUPERVISOR, [currentUser]);
@@ -230,8 +230,8 @@ export default function StaffManagementPage() {
         toast({ title: "Action Not Allowed", description: "You cannot delete yourself.", variant: "destructive"});
         return;
     }
-    if (currentUser?.role === UserRoleEnum.MANAGER && (user.role === UserRoleEnum.MANAGER || user.role === UserRoleEnum.DEVELOPER)) {
-        toast({ title: "Action Not Allowed", description: "Managers cannot delete other managers or developers.", variant: "destructive"});
+    if (currentUser?.role === UserRoleEnum.MANAGER && (user.role === UserRoleEnum.MANAGER || user.role === UserRoleEnum.DEVELOPER) && currentUser?.uid !== user.id) {
+        toast({ title: "Action Not Allowed", description: "Managers cannot delete other managers (except themselves if developer tools allowed it) or developers.", variant: "destructive"});
         return;
     }
     setUserToDeleteDirectly(user);
@@ -274,7 +274,7 @@ export default function StaffManagementPage() {
 
 
     if (result.success) {
-      toast({ title: "Request Submitted", description: `${result.message} Status: Pending Manager Approval.` });
+      toast({ title: "Request Submitted", description: `${result.message}` });
       setIsRequestDeleteDialogOpen(false);
     } else {
       toast({ title: "Request Failed", description: result.message, variant: "destructive" });
@@ -291,7 +291,7 @@ export default function StaffManagementPage() {
     const result = await requestAddUserAction(values, { uid: currentUser.uid, name: currentUser.name, role: currentUser.role });
 
     if (result.success) {
-      toast({ title: "Request Submitted", description: `${result.message} Status: Pending Manager Approval.` });
+      toast({ title: "Request Submitted", description: `${result.message}` });
       setIsRequestAddUserDialogOpen(false);
       requestAddUserForm.reset();
     } else {
@@ -311,8 +311,8 @@ export default function StaffManagementPage() {
   };
 
  const emptyListMessage = () => {
-    if (isLoadingStaffList) return "Loading staff list...";
-    const f12Guidance = "IMPORTANT: Check your browser's F12 Developer Console for detailed Firebase error messages (e.g., missing index links or permission issues).";
+    if (isLoadingStaffList || isLoadingCurrentUser) return "Loading staff list..."; // Combined loading check
+    const f12Guidance = "CRITICAL: Open browser developer console (F12, then Console tab) to see the full Firebase error message. This message often includes a link to create a required Firestore index or indicates a permissions issue.";
     if (currentUser?.role === UserRoleEnum.DEVELOPER) return `No users found in the system. Click 'Add New User' to get started. Ensure your Firestore 'users' collection has data. ${f12Guidance}`;
     if (currentUser?.role === UserRoleEnum.MANAGER) return `No non-developer users found (or error fetching). Click 'Add New User' to get started. Ensure your Firestore 'users' collection has data. ${f12Guidance}`;
     if (isSupervisor) return `No users with the 'staff' role found (or error fetching). You can request to add new staff members. Ensure your Firestore 'users' collection has users with 'role: "staff"'. ${f12Guidance}`;
@@ -424,7 +424,7 @@ export default function StaffManagementPage() {
             </p>
         </CardHeader>
         <CardContent className="p-6">
-          {isLoadingStaffList ? (
+          {isLoadingStaffList || isLoadingCurrentUser ? ( // Combined loading check
             <div className="space-y-2"> {[1,2,3].map(i => <Skeleton key={i} className="h-12 w-full rounded-md" />)} </div>
           ) : staffList.length === 0 ? (
              <div className="mt-4 p-6 border-2 border-dashed border-muted-foreground/30 rounded-lg text-center bg-muted/10">
@@ -447,7 +447,7 @@ export default function StaffManagementPage() {
                       <TableCell>{staff.email}</TableCell>
                       <TableCell className="capitalize">{staff.role}</TableCell>
                       <TableCell className="text-right space-x-2">
-                        {canManageUsers && currentUser.uid !== staff.id && !(currentUser.role === UserRoleEnum.MANAGER && (staff.role === UserRoleEnum.MANAGER || staff.role === UserRoleEnum.DEVELOPER)) && (
+                        {canManageUsers && currentUser.uid !== staff.id && !(currentUser.role === UserRoleEnum.MANAGER && (staff.role === UserRoleEnum.MANAGER || staff.role === UserRoleEnum.DEVELOPER) && currentUser.uid !== staff.id) && (
                           <Button variant="destructive" size="sm" className="rounded-md" onClick={() => openDirectDeleteDialog(staff)} disabled={isSubmitting}>
                             <Trash2 className="mr-1 h-4 w-4" /> Delete
                           </Button>
@@ -491,3 +491,4 @@ export default function StaffManagementPage() {
     </div>
   );
 }
+
