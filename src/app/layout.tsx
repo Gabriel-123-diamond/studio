@@ -1,5 +1,5 @@
 
-"use client"; 
+"use client"; // Root layout is a client component to manage client-side state like theme
 
 import { Geist, Geist_Mono } from 'next/font/google';
 import './globals.css';
@@ -35,14 +35,23 @@ export default function RootLayout({
         <meta name="description" content="Your personalized culinary journey." />
         <link rel="icon" href="/favicon.ico" sizes="any" />
       </head>
-      <body 
+      <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
         suppressHydrationWarning={true}
       >
-        <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-          {children}
-          {isClient && <Toaster />}
-        </ThemeProvider>
+        {isClient ? (
+          <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+            {children}
+            <Toaster />
+          </ThemeProvider>
+        ) : (
+          // Render children directly on the server and initial client render without ThemeProvider
+          // This avoids the ThemeProvider script causing hydration mismatch.
+          // A flash of unstyled content for theme might occur briefly.
+          <>
+            {children}
+          </>
+        )}
       </body>
     </html>
   );
