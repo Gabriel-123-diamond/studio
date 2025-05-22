@@ -156,11 +156,12 @@ export default function StaffManagementPage() {
     }
     
     setIsLoadingStaffList(true);
-    // Query for users with role "staff" and order by name
+    // Query for users with role "staff" 
+    // Removed orderBy("name") to simplify query for troubleshooting index issues
     const q = query(
       collection(db, "users"), 
-      where("role", "==", UserRoleEnum.STAFF), 
-      orderBy("name")
+      where("role", "==", UserRoleEnum.STAFF)
+      // orderBy("name") // Temporarily removed for troubleshooting
     );
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
       const users: UserData[] = [];
@@ -171,7 +172,7 @@ export default function StaffManagementPage() {
       setIsLoadingStaffList(false);
     }, (error) => {
       console.error("Error fetching staff list:", error);
-      toast({ title: "Error", description: "Could not fetch staff list.", variant: "destructive" });
+      toast({ title: "Error", description: "Could not fetch staff list. Check console for index creation links from Firebase if this persists.", variant: "destructive" });
       setIsLoadingStaffList(false);
     });
     return () => unsubscribe();
@@ -221,11 +222,7 @@ export default function StaffManagementPage() {
 
 
   const openRequestDeletionDialog = (user: UserData) => {
-    if (user.role === UserRoleEnum.MANAGER || user.role === UserRoleEnum.DEVELOPER || user.role === UserRoleEnum.SUPERVISOR){
-        toast({title: "Action Not Allowed", description: "Supervisors cannot request deletion of other supervisors, managers, or developers.", variant: "destructive"});
-        return;
-    }
-    if (user.role !== UserRoleEnum.STAFF) { // Ensure supervisor can only request deletion for 'staff' role
+    if (user.role !== UserRoleEnum.STAFF) { 
         toast({title: "Action Not Allowed", description: "You can only request deletion for users with the 'Staff' role.", variant: "destructive"});
         return;
     }
@@ -455,5 +452,3 @@ export default function StaffManagementPage() {
     </div>
   );
 }
-
-    
