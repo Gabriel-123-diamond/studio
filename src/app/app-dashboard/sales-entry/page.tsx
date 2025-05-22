@@ -84,15 +84,16 @@ const ProductQuantityInputGroup: React.FC<ProductQuantityInputGroupProps> = ({
                   id={`${namePrefix}.${product}`}
                   type="number"
                   min="0"
+                  placeholder="0"
                   className="rounded-md"
                   onChange={(e) => field.onChange(parseInt(e.target.value, 10) || 0)}
                   disabled={isInputDisabled}
                 />
                 <p className="text-xs text-muted-foreground mt-1">
                   {isLoadingSavedValue ? (
-                    "Loading saved..."
+                    "Loading..."
                   ) : (
-                    `Saved: ${savedQuantities && savedQuantities[product] !== undefined ? savedQuantities[product] : 0}`
+                    `Quantity: ${savedQuantities && savedQuantities[product] !== undefined ? savedQuantities[product] : 0}`
                   )}
                 </p>
               </>
@@ -108,7 +109,7 @@ const ProductQuantityInputGroup: React.FC<ProductQuantityInputGroupProps> = ({
 export default function SalesEntryPage() {
   const { toast } = useToast();
   const [isLoadingUserDetails, setIsLoadingUserDetails] = useState(true);
-  const [isLoadingSalesEntry, setIsLoadingSalesEntry] = useState(true); // For initial load and reload
+  const [isLoadingSalesEntry, setIsLoadingSalesEntry] = useState(true); 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
   const [staffId, setStaffId] = useState<string | null>(null);
@@ -120,7 +121,7 @@ export default function SalesEntryPage() {
 
   const form = useForm<SalesEntryFormValues>({
     resolver: zodResolver(salesEntryFormSchema),
-    defaultValues: defaultFormValues, // Inputs will be reset to 0 initially for additive entries
+    defaultValues: defaultFormValues, 
   });
 
   useEffect(() => {
@@ -129,7 +130,7 @@ export default function SalesEntryPage() {
       year: 'numeric',
       month: 'long',
       day: 'numeric',
-      timeZone: 'Africa/Lagos', // WAT timezone
+      timeZone: 'Africa/Lagos', 
     };
     setTodayDateDisplay(new Date().toLocaleDateString('en-US', options));
   }, []);
@@ -159,29 +160,29 @@ export default function SalesEntryPage() {
     if (!currentUserId) {
       setIsLoadingSalesEntry(false);
       setSavedSalesData(defaultFormValues); 
-      form.reset(defaultFormValues); // Inputs show 0 for new additive entry
+      form.reset(defaultFormValues); 
       return;
     }
     setIsLoadingSalesEntry(true);
     const data = await getTodaysSalesEntry(currentUserId);
     if (data) {
       const currentData: SalesEntryFormValues = {
-        collected: data.collected,
-        soldCash: data.soldCash,
-        soldTransfer: data.soldTransfer,
-        soldCard: data.soldCard,
-        returned: data.returned,
-        damages: data.damages,
+        collected: data.collected || initialProductQuantities,
+        soldCash: data.soldCash || initialProductQuantities,
+        soldTransfer: data.soldTransfer || initialProductQuantities,
+        soldCard: data.soldCard || initialProductQuantities,
+        returned: data.returned || initialProductQuantities,
+        damages: data.damages || initialProductQuantities,
       };
-      setSavedSalesData(currentData); // "Saved: X" reflects DB totals
-      form.reset(defaultFormValues); // Inputs are reset to 0 for new additive entry
+      setSavedSalesData(currentData); 
+      form.reset(defaultFormValues); 
       setIsDataFinalized(data.isFinalized || false);
       if (showToast) {
-        toast({ title: "Data Reloaded", description: "Today's sales data has been loaded." });
+        toast({ title: "Data Reloaded", description: "Today's sales totals have been loaded." });
       }
     } else {
-      setSavedSalesData(defaultFormValues); // "Saved: X" shows 0
-      form.reset(defaultFormValues); // Inputs show 0
+      setSavedSalesData(defaultFormValues); 
+      form.reset(defaultFormValues); 
       setIsDataFinalized(false);
       if (showToast) {
         toast({ title: "No Data Found", description: "No sales data found for today. Ready for new entry." });
@@ -209,7 +210,7 @@ export default function SalesEntryPage() {
   }, [fetchCurrentUserDetails, form]);
 
   useEffect(() => {
-    if (userId && !isLoadingUserDetails) { // Ensure user details are loaded before fetching sales data
+    if (userId && !isLoadingUserDetails) { 
       loadTodaysData(userId);
     } else if (!userId) {
       setIsLoadingSalesEntry(false);
@@ -237,9 +238,8 @@ export default function SalesEntryPage() {
         title: "Success!",
         description: result.message,
       });
-      // Update "Saved: X" displays with the new accumulated totals from DB
+      
       setSavedSalesData(result.updatedData as SalesEntryFormValues);
-      // Reset input fields to 0 for the next additive entry
       form.reset(defaultFormValues); 
     } else {
       toast({
@@ -251,13 +251,12 @@ export default function SalesEntryPage() {
     setIsSubmitting(false);
   }
 
-  // Resets input fields to 0 for a new additive entry
-  const handleResetFormForNewAddition = () => {
+  const handleClearInputs = () => {
     form.reset(defaultFormValues);
-    toast({ title: "Form Cleared", description: "Input fields cleared. Ready for new additions."});
+    toast({ title: "Inputs Cleared", description: "Input fields cleared. Ready for new additions."});
   };
   
-  const isPageLoading = isLoadingUserDetails || (userId && isLoadingSalesEntry && !firebaseUser); // Refined loading condition
+  const isPageLoading = isLoadingUserDetails || (userId && isLoadingSalesEntry && !firebaseUser); 
   const isFormDisabled = isSubmitting || isLoadingUserDetails || isLoadingSalesEntry || isDataFinalized || !userId || !staffId;
 
 
@@ -305,7 +304,7 @@ export default function SalesEntryPage() {
             <div>
               <CardTitle className="text-3xl">Daily Sales Entry</CardTitle>
               <CardDescription className="text-md">
-                Enter sales data for {todayDateDisplay}. (Staff ID: {staffId || (isLoadingUserDetails ? "Loading..." : "N/A")})
+                Enter sales data additions for {todayDateDisplay}. (Staff ID: {staffId || (isLoadingUserDetails ? "Loading..." : "N/A")})
               </CardDescription>
               <CardDescription className="text-sm mt-1">Values entered will be ADDED to today's existing totals.</CardDescription>
             </div>
@@ -320,7 +319,7 @@ export default function SalesEntryPage() {
           <CardContent className="p-6 space-y-8">
           {isLoadingUserDetails || (userId && isLoadingSalesEntry) ? ( 
             <div className="space-y-4">
-                {[1,2,3].map(i => ( // Simplified skeleton during load
+                {[1,2,3].map(i => ( 
                     <div key={i} className="space-y-2 p-4 border rounded-lg shadow-sm">
                         <Skeleton className="h-6 w-1/3 mb-3 rounded" />
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -376,7 +375,7 @@ export default function SalesEntryPage() {
             <Button
               type="button"
               variant="outline"
-              onClick={handleResetFormForNewAddition}
+              onClick={handleClearInputs}
               disabled={isSubmitting || isLoadingUserDetails || isLoadingSalesEntry || isDataFinalized || !userId}
               className="w-full sm:w-auto rounded-md"
             >
@@ -406,4 +405,3 @@ export default function SalesEntryPage() {
   );
 }
 
-    
