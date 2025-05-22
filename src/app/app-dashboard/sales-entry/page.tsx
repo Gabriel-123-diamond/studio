@@ -14,7 +14,7 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { ClipboardPenLine, RotateCw, Save, Eraser } from "lucide-react";
-import type { SalesEntryData } from "@/types/sales";
+import type { SalesEntryData, ProductQuantities } from "@/types/sales";
 import { initialProductQuantities, productTypes, productLabels } from "@/types/sales";
 import { submitSalesEntry, getTodaysSalesEntry } from "./_actions/submitSalesEntry";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -38,7 +38,7 @@ const salesEntryFormSchema = z.object({
 
 type SalesEntryFormValues = z.infer<typeof salesEntryFormSchema>;
 
-const defaultValues: SalesEntryFormValues = {
+const defaultFormValues: SalesEntryFormValues = {
   collected: { ...initialProductQuantities },
   soldCash: { ...initialProductQuantities },
   soldTransfer: { ...initialProductQuantities },
@@ -71,7 +71,7 @@ const ProductQuantityInputGroup: React.FC<ProductQuantityInputGroupProps> = ({
     <CardContent className="p-4 grid grid-cols-2 md:grid-cols-4 gap-x-4 gap-y-6">
       {productTypes.map((product) => (
         <div key={product} className="space-y-1.5">
-          <Label htmlFor={`${namePrefix}.${product}`} className="text-sm font-medium">
+          <Label htmlFor={`${namePrefix}.${product}`} className="text-sm font-medium text-foreground/80">
             {productLabels[product]}
           </Label>
           <Controller
@@ -108,19 +108,19 @@ const ProductQuantityInputGroup: React.FC<ProductQuantityInputGroupProps> = ({
 export default function SalesEntryPage() {
   const { toast } = useToast();
   const [isLoadingUserDetails, setIsLoadingUserDetails] = useState(true);
-  const [isLoadingSalesEntry, setIsLoadingSalesEntry] = useState(true);
+  const [isLoadingSalesEntry, setIsLoadingSalesEntry] = useState(true); // For initial load and reload
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
   const [staffId, setStaffId] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
   const [isDataFinalized, setIsDataFinalized] = useState(false);
   const [todayDateDisplay, setTodayDateDisplay] = useState<string>("Loading date...");
-  const [savedSalesData, setSavedSalesData] = useState<SalesEntryFormValues | null>(null);
+  const [savedSalesData, setSavedSalesData] = useState<SalesEntryFormValues>(defaultFormValues);
 
 
   const form = useForm<SalesEntryFormValues>({
     resolver: zodResolver(salesEntryFormSchema),
-    defaultValues,
+    defaultValues: defaultFormValues, // Inputs will be reset to 0 initially for additive entries
   });
 
   useEffect(() => {
@@ -155,64 +155,69 @@ export default function SalesEntryPage() {
     setIsLoadingUserDetails(false);
   }, [toast]);
 
-  const loadTodaysData = useCallback(async (currentUserId: string) => {
+  const loadTodaysData = useCallback(async (currentUserId: string, showToast = false) => {
     if (!currentUserId) {
       setIsLoadingSalesEntry(false);
-      setSavedSalesData(defaultValues); // Ensure saved data is reset if no user
-      form.reset(defaultValues);
+      setSavedSalesData(defaultFormValues); 
+      form.reset(defaultFormValues); // Inputs show 0 for new additive entry
       return;
     }
     setIsLoadingSalesEntry(true);
     const data = await getTodaysSalesEntry(currentUserId);
     if (data) {
-      form.reset({
+      const currentData: SalesEntryFormValues = {
         collected: data.collected,
         soldCash: data.soldCash,
         soldTransfer: data.soldTransfer,
         soldCard: data.soldCard,
         returned: data.returned,
         damages: data.damages,
-      });
-      setSavedSalesData(data as SalesEntryFormValues); // Cast as full form values for consistency
+      };
+      setSavedSalesData(currentData); // "Saved: X" reflects DB totals
+      form.reset(defaultFormValues); // Inputs are reset to 0 for new additive entry
       setIsDataFinalized(data.isFinalized || false);
+      if (showToast) {
+        toast({ title: "Data Reloaded", description: "Today's sales data has been loaded." });
+      }
     } else {
-      form.reset(defaultValues);
-      setSavedSalesData(defaultValues);
+      setSavedSalesData(defaultFormValues); // "Saved: X" shows 0
+      form.reset(defaultFormValues); // Inputs show 0
       setIsDataFinalized(false);
+      if (showToast) {
+        toast({ title: "No Data Found", description: "No sales data found for today. Ready for new entry." });
+      }
     }
     setIsLoadingSalesEntry(false);
-  }, [form]);
+  }, [form, toast]);
 
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged(async (user) => {
       if (user) {
         setFirebaseUser(user);
         await fetchCurrentUserDetails(user);
-        // loadTodaysData will be called by the userId effect
       } else {
         setFirebaseUser(null);
         setUserId(null);
         setStaffId(null);
         setIsLoadingUserDetails(false);
         setIsLoadingSalesEntry(false); 
-        setSavedSalesData(defaultValues);
-        form.reset(defaultValues);
+        setSavedSalesData(defaultFormValues);
+        form.reset(defaultFormValues);
       }
     });
     return () => unsubscribe();
   }, [fetchCurrentUserDetails, form]);
 
   useEffect(() => {
-    if (userId) {
+    if (userId && !isLoadingUserDetails) { // Ensure user details are loaded before fetching sales data
       loadTodaysData(userId);
-    } else {
-      // If no userId (e.g., logged out), reset everything
+    } else if (!userId) {
       setIsLoadingSalesEntry(false);
-      setSavedSalesData(defaultValues);
-      form.reset(defaultValues);
+      setSavedSalesData(defaultFormValues);
+      form.reset(defaultFormValues);
       setIsDataFinalized(false);
     }
-  }, [userId, loadTodaysData, form]);
+  }, [userId, isLoadingUserDetails, loadTodaysData, form]);
 
 
   async function onSubmit(values: SalesEntryFormValues) {
@@ -227,33 +232,36 @@ export default function SalesEntryPage() {
 
     setIsSubmitting(true);
     const result = await submitSalesEntry(values, userId, staffId);
-    if (result.success) {
+    if (result.success && result.updatedData) {
       toast({
         title: "Success!",
         description: result.message,
       });
-      setSavedSalesData(values); // Update saved data display on successful save
+      // Update "Saved: X" displays with the new accumulated totals from DB
+      setSavedSalesData(result.updatedData as SalesEntryFormValues);
+      // Reset input fields to 0 for the next additive entry
+      form.reset(defaultFormValues); 
     } else {
       toast({
         title: "Submission Failed",
-        description: result.message,
+        description: result.message || "An unknown error occurred.",
         variant: "destructive",
       });
     }
     setIsSubmitting(false);
   }
 
-  const handleResetForm = () => {
-    form.reset(defaultValues);
-    setSavedSalesData(defaultValues); // Also reset the "Saved: X" display to zeros
-    toast({ title: "Form Reset", description: "All fields have been cleared to zero."});
+  // Resets input fields to 0 for a new additive entry
+  const handleResetFormForNewAddition = () => {
+    form.reset(defaultFormValues);
+    toast({ title: "Form Cleared", description: "Input fields cleared. Ready for new additions."});
   };
   
-  const isPageLoading = isLoadingUserDetails || (userId && isLoadingSalesEntry && !savedSalesData);
+  const isPageLoading = isLoadingUserDetails || (userId && isLoadingSalesEntry && !firebaseUser); // Refined loading condition
   const isFormDisabled = isSubmitting || isLoadingUserDetails || isLoadingSalesEntry || isDataFinalized || !userId || !staffId;
 
 
-  if (isLoadingUserDetails && !userId && firebaseUser === null) { 
+  if (isPageLoading) { 
     return (
       <div className="w-full space-y-6">
         <Card className="shadow-lg rounded-lg">
@@ -271,10 +279,10 @@ export default function SalesEntryPage() {
                 <div key={i} className="space-y-2">
                     <Skeleton className="h-6 w-1/3 rounded" />
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        <Skeleton className="h-10 w-full rounded" />
-                        <Skeleton className="h-10 w-full rounded" />
-                        <Skeleton className="h-10 w-full rounded" />
-                        <Skeleton className="h-10 w-full rounded" />
+                        <Skeleton className="h-10 w-full rounded" /> <Skeleton className="h-4 w-1/2 rounded" />
+                        <Skeleton className="h-10 w-full rounded" /> <Skeleton className="h-4 w-1/2 rounded" />
+                        <Skeleton className="h-10 w-full rounded" /> <Skeleton className="h-4 w-1/2 rounded" />
+                        <Skeleton className="h-10 w-full rounded" /> <Skeleton className="h-4 w-1/2 rounded" />
                     </div>
                 </div>
             ))}
@@ -299,6 +307,7 @@ export default function SalesEntryPage() {
               <CardDescription className="text-md">
                 Enter sales data for {todayDateDisplay}. (Staff ID: {staffId || (isLoadingUserDetails ? "Loading..." : "N/A")})
               </CardDescription>
+              <CardDescription className="text-sm mt-1">Values entered will be ADDED to today's existing totals.</CardDescription>
             </div>
           </div>
            {isDataFinalized && (
@@ -309,30 +318,27 @@ export default function SalesEntryPage() {
         </CardHeader>
         <form onSubmit={form.handleSubmit(onSubmit)}>
           <CardContent className="p-6 space-y-8">
-          {isPageLoading && !savedSalesData ? ( 
+          {isLoadingUserDetails || (userId && isLoadingSalesEntry) ? ( 
             <div className="space-y-4">
-                {[1,2,3].map(i => (
-                    <div key={i} className="space-y-2">
-                        <Skeleton className="h-6 w-1/3 rounded" />
+                {[1,2,3].map(i => ( // Simplified skeleton during load
+                    <div key={i} className="space-y-2 p-4 border rounded-lg shadow-sm">
+                        <Skeleton className="h-6 w-1/3 mb-3 rounded" />
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                            <Skeleton className="h-10 w-full rounded" />
-                            <Skeleton className="h-10 w-full rounded" />
-                            <Skeleton className="h-10 w-full rounded" />
-                            <Skeleton className="h-10 w-full rounded" />
+                            {[1,2,3,4].map(j => <Skeleton key={j} className="h-16 w-full rounded" />)}
                         </div>
                     </div>
                 ))}
             </div>
           ) : (
             <>
-              <ProductQuantityInputGroup control={form.control} namePrefix="collected" title="Quantity Collected from Store" 
+              <ProductQuantityInputGroup control={form.control} namePrefix="collected" title="Quantity Collected from Store (Enter new additions)" 
                 isInputDisabled={isFormDisabled} 
                 isLoadingSavedValue={isLoadingSalesEntry} 
                 savedQuantities={savedSalesData?.collected} 
               />
               <Separator />
               <Card className="shadow-md rounded-lg">
-                  <CardHeader className="p-4 bg-muted/20 rounded-t-lg"><CardTitle className="text-xl">Quantity Sold</CardTitle></CardHeader>
+                  <CardHeader className="p-4 bg-muted/20 rounded-t-lg"><CardTitle className="text-xl">Quantity Sold (Enter new additions)</CardTitle></CardHeader>
                   <CardContent className="p-4 space-y-6">
                       <ProductQuantityInputGroup control={form.control} namePrefix="soldCash" title="Sold (Cash)" 
                         isInputDisabled={isFormDisabled} 
@@ -352,13 +358,13 @@ export default function SalesEntryPage() {
                   </CardContent>
               </Card>
               <Separator />
-              <ProductQuantityInputGroup control={form.control} namePrefix="returned" title="Quantity Returned to Store" 
+              <ProductQuantityInputGroup control={form.control} namePrefix="returned" title="Quantity Returned to Store (Enter new additions)" 
                 isInputDisabled={isFormDisabled} 
                 isLoadingSavedValue={isLoadingSalesEntry} 
                 savedQuantities={savedSalesData?.returned}
               />
               <Separator />
-              <ProductQuantityInputGroup control={form.control} namePrefix="damages" title="Damages" 
+              <ProductQuantityInputGroup control={form.control} namePrefix="damages" title="Damages (Enter new additions)" 
                 isInputDisabled={isFormDisabled} 
                 isLoadingSavedValue={isLoadingSalesEntry} 
                 savedQuantities={savedSalesData?.damages}
@@ -370,20 +376,20 @@ export default function SalesEntryPage() {
             <Button
               type="button"
               variant="outline"
-              onClick={handleResetForm}
+              onClick={handleResetFormForNewAddition}
               disabled={isSubmitting || isLoadingUserDetails || isLoadingSalesEntry || isDataFinalized || !userId}
               className="w-full sm:w-auto rounded-md"
             >
-              <Eraser className="mr-2 h-4 w-4" /> Reset Form
+              <Eraser className="mr-2 h-4 w-4" /> Clear Inputs
             </Button>
             <Button
               type="button"
               variant="outline"
-              onClick={() => userId && loadTodaysData(userId)}
+              onClick={() => userId && loadTodaysData(userId, true)}
               disabled={isSubmitting || isLoadingUserDetails || isLoadingSalesEntry || !userId}
               className="w-full sm:w-auto rounded-md"
             >
-              <RotateCw className="mr-2 h-4 w-4" /> Reload Today's Data
+              <RotateCw className="mr-2 h-4 w-4" /> Reload Today's Totals
             </Button>
             <Button
               type="submit"
@@ -391,7 +397,7 @@ export default function SalesEntryPage() {
               className="w-full sm:w-auto bg-primary text-primary-foreground hover:bg-primary/90 rounded-md"
             >
               <Save className="mr-2 h-4 w-4" />
-              {isSubmitting ? "Saving..." : "Save Entry"}
+              {isSubmitting ? "Saving..." : "Add to Today's Entry"}
             </Button>
           </CardFooter>
         </form>
@@ -399,6 +405,5 @@ export default function SalesEntryPage() {
     </div>
   );
 }
-
 
     
