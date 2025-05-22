@@ -36,15 +36,22 @@ export default function LoginPage() {
   const { toast } = useToast();
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (!isMounted) return; // Don't run auth check until component is mounted
+
     const unsubscribe = auth.onAuthStateChanged(user => {
       if (user) {
         router.push("/app-dashboard");
       }
     });
     return () => unsubscribe();
-  }, [router]);
+  }, [router, isMounted]);
 
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(loginFormSchema),
@@ -63,13 +70,16 @@ export default function LoginPage() {
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       const firebaseUser = userCredential.user;
       let userRole = "User"; // Default role
+      let userName = "User";
 
       if (firebaseUser) {
         try {
           const userDocRef = doc(db, "users", firebaseUser.uid);
           const userDocSnap = await getDoc(userDocRef);
           if (userDocSnap.exists()) {
-            userRole = userDocSnap.data().role || "User";
+            const userData = userDocSnap.data();
+            userRole = userData.role || "User";
+            userName = userData.name || firebaseUser.email?.split('@')[0] || "User";
           } else {
             console.warn("User document not found in Firestore for UID:", firebaseUser.uid);
           }
@@ -82,7 +92,7 @@ export default function LoginPage() {
 
       toast({
         title: "Login Successful!",
-        description: `Welcome Back! Role: ${roleDisplay}. Redirecting to dashboard...`,
+        description: `Welcome Back, ${userName}! Role: ${roleDisplay}. Redirecting...`,
         variant: "default",
       });
       router.push("/dashboard"); 
@@ -91,7 +101,6 @@ export default function LoginPage() {
       if (error.code === "auth/user-not-found" || error.code === "auth/wrong-password" || error.code === "auth/invalid-credential") {
         errorMessage = "Invalid Staff ID or Password.";
       } else if (error.code === "auth/invalid-email") {
-        // This case should be less common now with Staff ID validation, but good to keep
         errorMessage = "Invalid Staff ID format (ensure it's 6 digits).";
       }
       console.error("Firebase login error:", error);
@@ -104,6 +113,10 @@ export default function LoginPage() {
     } finally {
       setIsSubmitting(false);
     }
+  }
+
+  if (!isMounted) {
+    return null; // Or a loading spinner, but null is fine for avoiding hydration mismatch
   }
 
   return (
@@ -191,5 +204,3 @@ export default function LoginPage() {
     </>
   );
 }
-
-    
