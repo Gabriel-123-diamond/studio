@@ -64,7 +64,7 @@ type RequestDeletionFormValues = z.infer<typeof requestDeletionSchema>;
 const requestAddUserFormSchema = z.object({
   name: z.string().min(3, "Name must be at least 3 characters."),
   staffId: z.string().regex(/^\d{6}$/, "Staff ID must be exactly 6 digits."),
-  role: z.enum([UserRoleEnum.STAFF, UserRoleEnum.SUPERVISOR]), 
+  role: z.enum([UserRoleEnum.STAFF, UserRoleEnum.SUPERVISOR]),
   initialPassword: z.string().min(6, "Password must be at least 6 characters.").optional().or(z.literal('')),
   reasonForRequest: z.string().max(200).optional().or(z.literal('')),
 });
@@ -78,7 +78,7 @@ export default function StaffManagementPage() {
   const [isLoadingCurrentUser, setIsLoadingCurrentUser] = useState(true);
   const [staffList, setStaffList] = useState<UserData[]>([]);
   const [isLoadingStaffList, setIsLoadingStaffList] = useState(true);
-  
+
   const [isAddUserDialogOpen, setIsAddUserDialogOpen] = useState(false);
   const [isRequestAddUserDialogOpen, setIsRequestAddUserDialogOpen] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -148,23 +148,23 @@ export default function StaffManagementPage() {
 
   useEffect(() => {
     if (!isMounted || !currentUser) {
-        setIsLoadingStaffList(false); 
-        setStaffList([]); 
+        setIsLoadingStaffList(false);
+        setStaffList([]);
         return;
     }
-    
+
     setIsLoadingStaffList(true);
-    console.log('Attempting to fetch staff list. Current user for query context:', currentUser);
-    
+    console.log('[StaffManagementPage] Attempting to fetch staff list. Current user for query context:', currentUser);
+
     let usersQuery;
     if (currentUser.role === UserRoleEnum.MANAGER || currentUser.role === UserRoleEnum.DEVELOPER) {
-      // Managers/Developers see all users, ordered by name
+      console.log('[StaffManagementPage] Querying as Manager/Developer: Fetching ALL users, ordered by name.');
       usersQuery = query(collection(db, "users"), orderBy("name"));
     } else if (currentUser.role === UserRoleEnum.SUPERVISOR) {
-      // Supervisors see only 'staff' role users
+      console.log('[StaffManagementPage] Querying as Supervisor: Fetching users with role "staff", ordered by name.');
       usersQuery = query(collection(db, "users"), where("role", "==", UserRoleEnum.STAFF), orderBy("name"));
     } else {
-      // Other roles see an empty list or could be restricted further
+      console.log('[StaffManagementPage] Current user role is neither Manager, Developer, nor Supervisor. Setting empty staff list.');
       setStaffList([]);
       setIsLoadingStaffList(false);
       return;
@@ -176,14 +176,15 @@ export default function StaffManagementPage() {
         users.push({ id: doc.id, ...doc.data() } as UserData);
       });
       setStaffList(users);
+      console.log('[StaffManagementPage] Fetched staff list:', users);
       setIsLoadingStaffList(false);
     }, (error) => {
-      console.error("Error fetching staff list from Firestore:", error);
-      toast({ 
-        title: "Error Fetching Staff", 
-        description: "Could not fetch staff list. Open browser developer console (F12, then Console tab) to see the full Firebase error message. It may suggest creating an index or indicate a permissions issue.", 
+      console.error("[StaffManagementPage] Error fetching staff list from Firestore:", error);
+      toast({
+        title: "Error Fetching Staff",
+        description: "Could not fetch staff list. Open browser developer console (F12, then Console tab) to see the full Firebase error message. It may suggest creating an index or indicate a permissions issue.",
         variant: "destructive",
-        duration: 10000 
+        duration: 10000,
       });
       setIsLoadingStaffList(false);
     });
@@ -224,19 +225,18 @@ export default function StaffManagementPage() {
 
   const confirmDeleteUser = async () => {
     if (!currentUser || !canManageUsers || !userToDeleteDirectly) return;
-    
+
     setIsSubmitting(true);
     const result = await deleteUserFirestoreAction(userToDeleteDirectly.id, currentUser);
     toast({ title: result.success ? "Success" : "Error", description: result.message, variant: result.success ? "default" : "destructive" });
-    setUserToDeleteDirectly(null); 
+    setUserToDeleteDirectly(null);
     setIsSubmitting(false);
   };
 
 
   const openRequestDeletionDialog = (user: UserData) => {
-    // Supervisors can only request deletion for 'staff' role users.
-    if (user.role !== UserRoleEnum.STAFF) { 
-        toast({title: "Action Not Allowed", description: "You can only request deletion for users with the 'Staff' role.", variant: "destructive"});
+    if (isSupervisor && user.role !== UserRoleEnum.STAFF) {
+        toast({title: "Action Not Allowed", description: "Supervisors can only request deletion for users with the 'Staff' role.", variant: "destructive"});
         return;
     }
     setUserToRequestDelete(user);
@@ -289,16 +289,18 @@ export default function StaffManagementPage() {
 
   const pageIcon = canManageUsers ? UsersIcon : UserCog;
   const descriptionText = () => {
-    if (canManageUsers) return "Oversee all staff members. You can add new users (of any role) and manage their Firestore records. This list displays all users in the system.";
+    if (canManageUsers) return "Oversee all staff members. You can add new users (of any role via 'Add New User' button) and manage their Firestore records. This list displays all users in the system.";
     if (isSupervisor) return "View staff members with the 'staff' role under your supervision. Request to add new staff or request deletion for existing staff members.";
     return "Staff information display. Limited access.";
   };
-  
+
   const emptyListMessage = () => {
-    if (canManageUsers) return "No users found in the system. Click 'Add New User' to get started.";
-    if (isSupervisor) return "No users with the 'staff' role found. You can request to add new staff members if needed.";
+    if (isLoadingStaffList) return "Loading staff list...";
+    if (canManageUsers) return "No users found in the system. Click 'Add New User' to get started, or check your Firestore 'users' collection and security rules.";
+    if (isSupervisor) return "No users with the 'staff' role found. You can request to add new staff members if needed, or check your Firestore 'users' collection for users with 'role: \"staff\"' and verify Firestore security rules.";
     return "No staff information available.";
   };
+
 
   if (!isMounted || isLoadingCurrentUser) {
     return (
@@ -411,8 +413,8 @@ export default function StaffManagementPage() {
                 <UsersIcon className="h-10 w-10 text-primary/60 mx-auto mb-3" />
                 <p className="text-lg font-medium text-muted-foreground">{emptyListMessage()}</p>
                 <p className="text-sm text-muted-foreground mt-1">
-                  Please check your Firestore 'users' collection. For supervisors, ensure users exist with `role: "staff"`.
-                  For managers/developers, ensure users exist in general. Also, review your browser's developer console (F12) for any specific Firebase error messages.
+                  {canManageUsers ? "Please check your Firestore 'users' collection and security rules." : "For supervisors, ensure users exist with 'role: \"staff\"' and verify Firestore security rules." }
+                  Review your browser's developer console (F12) for any specific Firebase error messages.
                 </p>
             </div>
           ) : (
@@ -436,7 +438,7 @@ export default function StaffManagementPage() {
                             <Trash2 className="mr-1 h-4 w-4" /> Delete
                           </Button>
                         )}
-                        {isSupervisor && staff.role === UserRoleEnum.STAFF && ( 
+                        {isSupervisor && staff.role === UserRoleEnum.STAFF && (
                            <Button variant="outline" size="sm" className="rounded-md border-amber-500 text-amber-600 hover:bg-amber-500/10" onClick={() => openRequestDeletionDialog(staff)} disabled={isSubmitting}>
                              <Send className="mr-1 h-4 w-4" /> Request Deletion
                            </Button>
@@ -475,3 +477,5 @@ export default function StaffManagementPage() {
     </div>
   );
 }
+
+    
