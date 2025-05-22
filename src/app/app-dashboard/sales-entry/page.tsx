@@ -61,7 +61,7 @@ const ProductQuantityInputGroup: React.FC<ProductQuantityInputGroupProps> = ({ c
     <CardContent className="p-4 grid grid-cols-2 md:grid-cols-4 gap-x-4 gap-y-6"> {/* Increased gap-y */}
       {productTypes.map((product) => (
         <div key={product} className="space-y-1.5">
-          <Label htmlFor={`${namePrefix}.${product}`} className="text-sm font-medium"> {/* Removed text-muted-foreground for better visibility */}
+          <Label htmlFor={`${namePrefix}.${product}`} className="text-sm font-medium"> 
             {productLabels[product]}
           </Label>
           <Controller
@@ -98,11 +98,25 @@ export default function SalesEntryPage() {
   const [staffId, setStaffId] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
   const [isDataFinalized, setIsDataFinalized] = useState(false);
+  const [todayDateDisplay, setTodayDateDisplay] = useState<string>("Loading date...");
 
   const form = useForm<SalesEntryFormValues>({
     resolver: zodResolver(salesEntryFormSchema),
     defaultValues,
   });
+
+  useEffect(() => {
+    // Set the display date using WAT
+    const options: Intl.DateTimeFormatOptions = {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      timeZone: 'Africa/Lagos', // WAT timezone
+    };
+    setTodayDateDisplay(new Date().toLocaleDateString('en-US', options));
+  }, []);
+
 
   const fetchCurrentUserDetails = useCallback(async (user: FirebaseUser) => {
     setUserId(user.uid);
@@ -128,7 +142,7 @@ export default function SalesEntryPage() {
       return;
     }
     setIsLoading(true);
-    const data = await getTodaysSalesEntry(currentUserId);
+    const data = await getTodaysSalesEntry(currentUserId); // Server action now uses WAT
     if (data) {
       form.reset({
         collected: data.collected,
@@ -140,7 +154,7 @@ export default function SalesEntryPage() {
       });
       setIsDataFinalized(data.isFinalized || false);
     } else {
-      form.reset(defaultValues);
+      form.reset(defaultValues); // Reset to zeros if no data for WAT "today"
       setIsDataFinalized(false);
     }
     setIsLoading(false);
@@ -151,13 +165,11 @@ export default function SalesEntryPage() {
       if (user) {
         setFirebaseUser(user);
         await fetchCurrentUserDetails(user);
-        // loadTodaysData will be triggered by the useEffect dependency on userId
       } else {
         setFirebaseUser(null);
         setUserId(null);
         setStaffId(null);
         setIsLoading(false);
-        // Consider redirecting to login if user becomes null after initial load
       }
     });
     return () => unsubscribe();
@@ -197,7 +209,7 @@ export default function SalesEntryPage() {
     setIsSubmitting(false);
   }
 
-  if (isLoading && !userId) { // Show full page skeleton if userId isn't even determined yet
+  if (isLoading && !userId) { 
     return (
       <div className="w-full space-y-6">
         <Card className="shadow-lg rounded-lg">
@@ -231,8 +243,6 @@ export default function SalesEntryPage() {
     );
   }
   
-  const todayDateString = new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-
   return (
     <div className="w-full">
       <Card className="shadow-xl rounded-lg overflow-hidden">
@@ -242,7 +252,7 @@ export default function SalesEntryPage() {
             <div>
               <CardTitle className="text-3xl">Daily Sales Entry</CardTitle>
               <CardDescription className="text-md">
-                Enter sales data for {todayDateString}. (Staff ID: {staffId || "Loading..."})
+                Enter sales data for {todayDateDisplay}. (Staff ID: {staffId || "Loading..."})
               </CardDescription>
             </div>
           </div>
@@ -293,7 +303,7 @@ export default function SalesEntryPage() {
              <Button
               type="button"
               variant="outline"
-              onClick={() => userId && loadTodaysData(userId)} // Ensure userId is passed
+              onClick={() => userId && loadTodaysData(userId)} 
               disabled={isSubmitting || isLoading || !userId}
               className="w-full sm:w-auto rounded-md"
             >
