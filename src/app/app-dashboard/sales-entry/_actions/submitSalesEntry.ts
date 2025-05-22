@@ -1,19 +1,19 @@
 
 "use server";
 
-import { auth, db } from "@/lib/firebase";
+import { db } from "@/lib/firebase"; // auth removed as auth.currentUser is not reliable here
 import type { SalesEntryData } from "@/types/sales";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import { revalidatePath } from "next/cache";
 
 export async function submitSalesEntry(
   data: Omit<SalesEntryData, "userId" | "staffId" | "date" | "isFinalized">,
+  userId: string, // Added userId parameter
   currentStaffId: string
 ): Promise<{ success: boolean; message: string; entryId?: string }> {
-  const user = auth.currentUser;
 
-  if (!user) {
-    return { success: false, message: "User not authenticated." };
+  if (!userId) { // Check passed userId
+    return { success: false, message: "User ID not provided." };
   }
   if (!currentStaffId) {
     return { success: false, message: "Staff ID not available." };
@@ -22,25 +22,21 @@ export async function submitSalesEntry(
   const today = new Date();
   const dateString = today.toISOString().split("T")[0]; // YYYY-MM-DD
 
-  const entryId = `${user.uid}_${dateString}`;
+  const entryId = `${userId}_${dateString}`; // Use passed userId
   const salesEntryRef = doc(db, "salesEntries", entryId);
 
   try {
-    // Check if an entry for today already exists to decide if it's an update or new
-    // For simplicity, this action always overwrites/creates.
-    // More complex logic could be added here to prevent overwriting finalized entries by sales staff.
-
     const fullData: SalesEntryData = {
       ...data,
-      userId: user.uid,
+      userId: userId, // Use passed userId
       staffId: currentStaffId,
       date: dateString,
-      isFinalized: false, // Sales staff entries are initially not finalized
+      isFinalized: false, 
     };
 
-    await setDoc(salesEntryRef, fullData, { merge: true }); // merge: true will update if exists, create if not
+    await setDoc(salesEntryRef, fullData, { merge: true }); 
 
-    revalidatePath("/app-dashboard/sales-entry"); // Revalidate the page to show updated data if needed
+    revalidatePath("/app-dashboard/sales-entry"); 
     return { success: true, message: "Sales entry saved successfully.", entryId };
   } catch (error) {
     console.error("Error saving sales entry:", error);
@@ -48,16 +44,15 @@ export async function submitSalesEntry(
   }
 }
 
-export async function getTodaysSalesEntry(): Promise<SalesEntryData | null> {
-  const user = auth.currentUser;
-  if (!user) {
-    console.log("No user logged in for getTodaysSalesEntry");
+export async function getTodaysSalesEntry(userId: string): Promise<SalesEntryData | null> { // Added userId parameter
+  if (!userId) { // Check passed userId
+    console.log("No user ID provided for getTodaysSalesEntry");
     return null;
   }
 
   const today = new Date();
   const dateString = today.toISOString().split("T")[0];
-  const entryId = `${user.uid}_${dateString}`;
+  const entryId = `${userId}_${dateString}`; // Use passed userId
   const salesEntryRef = doc(db, "salesEntries", entryId);
 
   try {
