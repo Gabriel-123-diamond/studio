@@ -6,7 +6,7 @@ import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { auth, db } from "@/lib/firebase";
-import { doc, getDoc, collection, query, onSnapshot, orderBy, where } from "firebase/firestore"; // Added where
+import { doc, getDoc, collection, query, onSnapshot, orderBy, where } from "firebase/firestore";
 import type { User as FirebaseUser } from "firebase/auth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
@@ -61,11 +61,10 @@ const requestDeletionSchema = z.object({
 });
 type RequestDeletionFormValues = z.infer<typeof requestDeletionSchema>;
 
-// Schema for Supervisor requesting to add user
 const requestAddUserFormSchema = z.object({
   name: z.string().min(3, "Name must be at least 3 characters."),
   staffId: z.string().regex(/^\d{6}$/, "Staff ID must be exactly 6 digits."),
-  role: z.enum([UserRoleEnum.STAFF, UserRoleEnum.SUPERVISOR]), // Supervisors can only request these roles
+  role: z.enum([UserRoleEnum.STAFF, UserRoleEnum.SUPERVISOR]), 
   initialPassword: z.string().min(6, "Password must be at least 6 characters.").optional().or(z.literal('')),
   reasonForRequest: z.string().max(200).optional().or(z.literal('')),
 });
@@ -142,7 +141,6 @@ export default function StaffManagementPage() {
       } else {
         setCurrentUser(null);
         setIsLoadingCurrentUser(false);
-        // router.push('/login'); // Consider if immediate redirect is needed if not logged in
       }
     });
     return () => unsubscribe();
@@ -156,12 +154,9 @@ export default function StaffManagementPage() {
     }
     
     setIsLoadingStaffList(true);
-    // Query for users with role "staff" 
-    // Removed orderBy("name") to simplify query for troubleshooting index issues
     const q = query(
       collection(db, "users"), 
       where("role", "==", UserRoleEnum.STAFF)
-      // orderBy("name") // Temporarily removed for troubleshooting
     );
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
       const users: UserData[] = [];
@@ -171,8 +166,13 @@ export default function StaffManagementPage() {
       setStaffList(users);
       setIsLoadingStaffList(false);
     }, (error) => {
-      console.error("Error fetching staff list:", error);
-      toast({ title: "Error", description: "Could not fetch staff list. Check console for index creation links from Firebase if this persists.", variant: "destructive" });
+      console.error("Error fetching staff list from Firestore:", error);
+      toast({ 
+        title: "Error Fetching Staff", 
+        description: "Could not fetch staff list. Open browser developer console (F12) to see the full Firebase error message. It may suggest creating an index or indicate a permissions issue.", 
+        variant: "destructive",
+        duration: 10000 // Keep toast longer
+      });
       setIsLoadingStaffList(false);
     });
     return () => unsubscribe();
@@ -216,7 +216,7 @@ export default function StaffManagementPage() {
     setIsSubmitting(true);
     const result = await deleteUserFirestoreAction(userToDeleteDirectly.id, currentUser);
     toast({ title: result.success ? "Success" : "Error", description: result.message, variant: result.success ? "default" : "destructive" });
-    setUserToDeleteDirectly(null); // Close dialog
+    setUserToDeleteDirectly(null); 
     setIsSubmitting(false);
   };
 
@@ -413,7 +413,7 @@ export default function StaffManagementPage() {
                             <Trash2 className="mr-1 h-4 w-4" /> Delete
                           </Button>
                         )}
-                        {isSupervisor && staff.role === UserRoleEnum.STAFF && ( // Supervisors can only request deletion for staff role
+                        {isSupervisor && staff.role === UserRoleEnum.STAFF && ( 
                            <Button variant="outline" size="sm" className="rounded-md border-amber-500 text-amber-600 hover:bg-amber-500/10" onClick={() => openRequestDeletionDialog(staff)} disabled={isSubmitting}>
                              <Send className="mr-1 h-4 w-4" /> Request Deletion
                            </Button>
@@ -452,3 +452,4 @@ export default function StaffManagementPage() {
     </div>
   );
 }
+
