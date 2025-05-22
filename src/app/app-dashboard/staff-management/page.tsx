@@ -16,7 +16,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
-import { Users as UsersIcon, UserCog, PlusCircle, Trash2, AlertTriangle, Eye, EyeOff, Send, Loader2, UserPlus } from "lucide-react"; // Renamed Users to UsersIcon to avoid conflict
+import { Users as UsersIcon, UserCog, PlusCircle, Trash2, AlertTriangle, Eye, EyeOff, Send, Loader2, UserPlus } from "lucide-react";
 import { Skeleton } from '@/components/ui/skeleton';
 import type { UserData } from "@/types/users";
 import { addUserAction, deleteUserFirestoreAction, requestUserDeletionAction, requestAddUserAction } from "./_actions/manageUsers";
@@ -48,6 +48,14 @@ const userRoleOptions = [
   { value: UserRoleEnum.DEVELOPER, label: "Developer" },
 ];
 
+// Roles a Manager can assign: Staff, Supervisor, Manager (but not Developer)
+const availableRolesForManager = userRoleOptions.filter(
+  opt => opt.value !== UserRoleEnum.DEVELOPER
+);
+// Roles a Developer can assign: All roles
+const availableRolesForDeveloper = userRoleOptions;
+
+
 const addUserFormSchema = z.object({
   name: z.string().min(3, "Name must be at least 3 characters."),
   staffId: z.string().regex(/^\d{6}$/, "Staff ID must be exactly 6 digits."),
@@ -64,7 +72,7 @@ type RequestDeletionFormValues = z.infer<typeof requestDeletionSchema>;
 const requestAddUserFormSchema = z.object({
   name: z.string().min(3, "Name must be at least 3 characters."),
   staffId: z.string().regex(/^\d{6}$/, "Staff ID must be exactly 6 digits."),
-  role: z.enum([UserRoleEnum.STAFF, UserRoleEnum.SUPERVISOR]), // Supervisors can only request to add staff or supervisor
+  role: z.enum([UserRoleEnum.STAFF, UserRoleEnum.SUPERVISOR]), 
   initialPassword: z.string().min(6, "Password must be at least 6 characters.").optional().or(z.literal('')),
   reasonForRequest: z.string().max(200).optional().or(z.literal('')),
 });
@@ -158,9 +166,8 @@ export default function StaffManagementPage() {
 
     let usersQuery;
     if (currentUser.role === UserRoleEnum.MANAGER || currentUser.role === UserRoleEnum.DEVELOPER) {
-      console.log('[StaffManagementPage] Querying as Manager/Developer: Fetching ALL users (temporarily without name order).');
-      // Temporarily remove orderBy("name") for diagnostics
-      usersQuery = query(collection(db, "users"));
+      console.log('[StaffManagementPage] Querying as Manager/Developer: Fetching ALL users, ordered by name.');
+      usersQuery = query(collection(db, "users"), orderBy("name"));
     } else if (currentUser.role === UserRoleEnum.SUPERVISOR) {
       console.log('[StaffManagementPage] Querying as Supervisor: Fetching users with role "staff", ordered by name.');
       usersQuery = query(collection(db, "users"), where("role", "==", UserRoleEnum.STAFF), orderBy("name"));
@@ -172,10 +179,16 @@ export default function StaffManagementPage() {
     }
 
     const unsubscribe = onSnapshot(usersQuery, (querySnapshot) => {
-      const users: UserData[] = [];
+      let users: UserData[] = [];
       querySnapshot.forEach((doc) => {
         users.push({ id: doc.id, ...doc.data() } as UserData);
       });
+
+      if (currentUser.role === UserRoleEnum.MANAGER) {
+        console.log('[StaffManagementPage] Manager view: Filtering out developers from the fetched list.');
+        users = users.filter(user => user.role !== UserRoleEnum.DEVELOPER);
+      }
+
       setStaffList(users);
       console.log('[StaffManagementPage] Fetched staff list:', users);
       setIsLoadingStaffList(false);
@@ -183,9 +196,9 @@ export default function StaffManagementPage() {
       console.error("[StaffManagementPage] Error fetching staff list from Firestore:", error);
       toast({
         title: "Error Fetching Staff",
-        description: "Could not fetch staff list. Open browser developer console (F12, then Console tab) to see the full Firebase error message. It may suggest creating an index or indicate a permissions issue.",
+        description: "Could not fetch staff list. CRITICAL: Open browser developer console (F12, then Console tab) to see the full Firebase error message. This message often includes a link to create a required Firestore index or indicates a permissions issue.",
         variant: "destructive",
-        duration: 10000,
+        duration: 15000, 
       });
       setIsLoadingStaffList(false);
     });
@@ -289,17 +302,21 @@ export default function StaffManagementPage() {
 
 
   const pageIcon = canManageUsers ? UsersIcon : UserCog;
+  
   const descriptionText = () => {
-    if (canManageUsers) return "Oversee all staff members. You can add new users (of any role via 'Add New User' button) and manage their Firestore records. This list displays all users in the system.";
+    if (currentUser?.role === UserRoleEnum.DEVELOPER) return "Oversee all staff members. You can add new users (of any role) and manage their Firestore records. This list displays all users in the system.";
+    if (currentUser?.role === UserRoleEnum.MANAGER) return "Oversee staff members. You can add new 'Staff', 'Supervisor', or 'Manager' users and manage their Firestore records. This list displays all users except Developers.";
     if (isSupervisor) return "View staff members with the 'staff' role under your supervision. Request to add new staff or request deletion for existing staff members.";
     return "Staff information display. Limited access.";
   };
 
  const emptyListMessage = () => {
     if (isLoadingStaffList) return "Loading staff list...";
-    if (canManageUsers) return "No users found in the system. Click 'Add New User' to get started. Ensure your Firestore 'users' collection has data and check security rules. If ordering by name, ensure an index on 'name' field exists (check F12 console for Firebase links).";
-    if (isSupervisor) return "No users with the 'staff' role found. You can request to add new staff members. Ensure your Firestore 'users' collection has users with 'role: \"staff\"' and verify security rules. If ordering by name, check for an index on 'name' for staff (F12 console).";
-    return "No staff information available.";
+    const f12Guidance = "IMPORTANT: Check your browser's F12 Developer Console for detailed Firebase error messages (e.g., missing index links or permission issues).";
+    if (currentUser?.role === UserRoleEnum.DEVELOPER) return `No users found in the system. Click 'Add New User' to get started. Ensure your Firestore 'users' collection has data. ${f12Guidance}`;
+    if (currentUser?.role === UserRoleEnum.MANAGER) return `No non-developer users found (or error fetching). Click 'Add New User' to get started. Ensure your Firestore 'users' collection has data. ${f12Guidance}`;
+    if (isSupervisor) return `No users with the 'staff' role found (or error fetching). You can request to add new staff members. Ensure your Firestore 'users' collection has users with 'role: "staff"'. ${f12Guidance}`;
+    return `No staff information available. ${f12Guidance}`;
   };
 
 
@@ -355,7 +372,7 @@ export default function StaffManagementPage() {
                                 <Select onValueChange={field.onChange} defaultValue={field.value}>
                                     <SelectTrigger id="role_add" className="mt-1 rounded-md"><SelectValue placeholder="Select a role" /></SelectTrigger>
                                     <SelectContent>
-                                        {userRoleOptions.filter(opt => currentUser.role === UserRoleEnum.DEVELOPER || (currentUser.role === UserRoleEnum.MANAGER && opt.value !== UserRoleEnum.DEVELOPER && opt.value !== UserRoleEnum.MANAGER) ).map(opt => (
+                                        {(currentUser.role === UserRoleEnum.DEVELOPER ? availableRolesForDeveloper : availableRolesForManager).map(opt => (
                                             <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
                                         ))}
                                     </SelectContent>
@@ -474,5 +491,3 @@ export default function StaffManagementPage() {
     </div>
   );
 }
-
-    

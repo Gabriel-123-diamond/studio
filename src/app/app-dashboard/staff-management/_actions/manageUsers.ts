@@ -22,8 +22,9 @@ export async function addUserAction(
   if (actingUser.role !== "manager" && actingUser.role !== "developer") {
     return { success: false, message: "Permission denied: Only managers or developers can add users directly." };
   }
-   if (actingUser.role === "manager" && (input.role === "developer" || input.role === "manager")) {
-    return { success: false, message: "Managers cannot assign 'developer' or 'manager' roles." };
+  // Allow managers to add other managers, but not developers. Developers can add anyone.
+  if (actingUser.role === "manager" && input.role === "developer") {
+    return { success: false, message: "Managers cannot assign 'developer' roles." };
   }
 
 
@@ -143,7 +144,7 @@ export async function requestUserDeletionAction(
       requestedByRole: supervisorUser.role,
       targetUserUid: input.targetUserUid,
       targetStaffId: input.targetStaffId,
-      targetUserName: input.targetUserName || `User (ID: ${input.targetStaffId || 'N/A'})`, // Fallback if name is undefined
+      targetUserName: input.targetUserName || `User (ID: ${input.targetStaffId || 'N/A'})`,
       targetUserRole: input.targetUserRole,
       status: "pending",
       requestTimestamp: serverTimestamp() as Timestamp,
@@ -151,7 +152,6 @@ export async function requestUserDeletionAction(
     };
     await setDoc(requestDocRef, newRequest);
 
-    // Ensure targetUserName is defined for the notification
     const notificationTargetUserName = newRequest.targetUserName;
 
     await sendNotificationAction({
@@ -176,7 +176,7 @@ export async function requestUserDeletionAction(
 }
 
 
-interface RequestAddUserInput extends AddUserInput { // Re-use AddUserInput for structure
+interface RequestAddUserInput extends AddUserInput { 
   reasonForRequest?: string;
 }
 export async function requestAddUserAction(
@@ -193,14 +193,12 @@ export async function requestAddUserAction(
     return { success: false, message: "Staff ID must be exactly 6 digits." };
   }
   if (!input.name.trim()) {
-    // This should be caught by client-side Zod validation, but good to have a server check
     return { success: false, message: "Name cannot be empty." };
   }
   if (!input.role || input.role === "none") {
     return { success: false, message: "A valid role must be selected." };
   }
 
-  // Check if staffId already exists
   const usersRef = collection(db, "users");
   const q = query(usersRef, where("staffId", "==", input.staffId));
   const querySnapshot = await getDocs(q);
@@ -216,10 +214,10 @@ export async function requestAddUserAction(
       requestedByUid: supervisorUser.uid,
       requestedByName: supervisorUser.name || "Supervisor",
       requestedByRole: supervisorUser.role,
-      targetUserName: input.name, // Name is guaranteed by Zod on client, and checked above.
+      targetUserName: input.name, 
       targetStaffId: input.staffId,
       targetUserRole: input.role,
-      initialPassword: input.initialPassword || "password", // Default if not provided
+      initialPassword: input.initialPassword || "password", 
       status: "pending",
       requestTimestamp: serverTimestamp() as Timestamp,
       reasonForRequest: input.reasonForRequest || "",
@@ -247,3 +245,4 @@ export async function requestAddUserAction(
   }
 }
 
+    
