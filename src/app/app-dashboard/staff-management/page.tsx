@@ -154,6 +154,7 @@ export default function StaffManagementPage() {
     }
     
     setIsLoadingStaffList(true);
+    console.log('Attempting to fetch staff list. Current user for query context:', currentUser);
     const q = query(
       collection(db, "users"), 
       where("role", "==", UserRoleEnum.STAFF)
@@ -169,7 +170,7 @@ export default function StaffManagementPage() {
       console.error("Error fetching staff list from Firestore:", error);
       toast({ 
         title: "Error Fetching Staff", 
-        description: "Could not fetch staff list. Open browser developer console (F12) to see the full Firebase error message. It may suggest creating an index or indicate a permissions issue.", 
+        description: "Could not fetch staff list. Open browser developer console (F12, then Console tab) to see the full Firebase error message. It may suggest creating an index or indicate a permissions issue.", 
         variant: "destructive",
         duration: 10000 // Keep toast longer
       });
@@ -232,21 +233,22 @@ export default function StaffManagementPage() {
   };
 
   const handleRequestUserDeletion = async (values: RequestDeletionFormValues) => {
-    if (!currentUser || !isSupervisor || !userToRequestDelete) {
-      toast({ title: "Error", description: "Cannot process request. Ensure you are logged in as a supervisor.", variant: "destructive" });
+    if (!currentUser || !isSupervisor || !userToRequestDelete || !currentUser.name) {
+      toast({ title: "Error", description: "Cannot process request. Ensure you are logged in as a supervisor and your user name is set.", variant: "destructive" });
       return;
     }
     setIsSubmitting(true);
     const result = await requestUserDeletionAction({
       targetUserUid: userToRequestDelete.id,
       targetStaffId: userToRequestDelete.staffId,
-      targetUserName: userToRequestDelete.name,
+      targetUserName: userToRequestDelete.name, // name is guaranteed to be set on UserData type
       targetUserRole: userToRequestDelete.role,
       reasonForRequest: values.reasonForRequest,
-    }, currentUser);
+    }, { uid: currentUser.uid, name: currentUser.name, role: currentUser.role });
+
 
     if (result.success) {
-      toast({ title: "Request Submitted", description: result.message });
+      toast({ title: "Request Submitted", description: `${result.message} Status: Pending Manager Approval.` });
       setIsRequestDeleteDialogOpen(false);
     } else {
       toast({ title: "Request Failed", description: result.message, variant: "destructive" });
@@ -255,14 +257,15 @@ export default function StaffManagementPage() {
   };
 
   const handleRequestAddUser = async (values: RequestAddUserFormValues) => {
-    if (!currentUser || !isSupervisor) {
-      toast({ title: "Permission Denied", description: "You are not authorized to request adding users.", variant: "destructive" });
+    if (!currentUser || !isSupervisor || !currentUser.name) {
+      toast({ title: "Permission Denied", description: "You are not authorized to request adding users or your user name is not set.", variant: "destructive" });
       return;
     }
     setIsSubmitting(true);
-    const result = await requestAddUserAction(values, currentUser);
+    const result = await requestAddUserAction(values, { uid: currentUser.uid, name: currentUser.name, role: currentUser.role });
+
     if (result.success) {
-      toast({ title: "Request Submitted", description: result.message });
+      toast({ title: "Request Submitted", description: `${result.message} Status: Pending Manager Approval.` });
       setIsRequestAddUserDialogOpen(false);
       requestAddUserForm.reset();
     } else {
@@ -275,7 +278,7 @@ export default function StaffManagementPage() {
   const pageIcon = canManageUsers ? Users : UserCog;
   const descriptionText = () => {
     if (canManageUsers) return "Oversee staff members. You can add new users (of any role via 'Add New User' button) and manage their Firestore records. This list displays users with the 'staff' role.";
-    if (isSupervisor) return "View staff members. Request to add new staff or request deletion for existing staff members.";
+    if (isSupervisor) return "View staff members with the 'staff' role. Request to add new staff or request deletion for existing staff members.";
     return "Staff information display. Limited access.";
   };
 
@@ -363,7 +366,8 @@ export default function StaffManagementPage() {
                                         <SelectTrigger id="role_req_add" className="mt-1 rounded-md"><SelectValue placeholder="Select role" /></SelectTrigger>
                                         <SelectContent>
                                             <SelectItem value={UserRoleEnum.STAFF}>Staff</SelectItem>
-                                            <SelectItem value={UserRoleEnum.SUPERVISOR}>Supervisor</SelectItem>
+                                            {/* Supervisors can only request to add 'staff' or other 'supervisors' under them */}
+                                            {/* <SelectItem value={UserRoleEnum.SUPERVISOR}>Supervisor</SelectItem> */}
                                         </SelectContent>
                                     </Select>
                                     )}
@@ -389,6 +393,7 @@ export default function StaffManagementPage() {
              <div className="mt-4 p-6 border-2 border-dashed border-muted-foreground/30 rounded-lg text-center bg-muted/10">
                 <Users className="h-10 w-10 text-primary/60 mx-auto mb-3" />
                 <p className="text-lg font-medium text-muted-foreground">No users with the 'staff' role found.</p>
+                <p className="text-sm text-muted-foreground mt-1">Please check your Firestore 'users' collection to ensure documents exist with a field 'role' set to 'staff'. Also, review your browser's developer console (F12) for any specific Firebase error messages if fetching continues to fail.</p>
                 {canManageUsers && <p className="text-sm text-muted-foreground mt-1">Click "Add New User" to add users (you can assign any role).</p>}
                 {isSupervisor && <p className="text-sm text-muted-foreground mt-1">You can request to add new staff members if needed.</p>}
             </div>
@@ -453,3 +458,5 @@ export default function StaffManagementPage() {
   );
 }
 
+
+    
