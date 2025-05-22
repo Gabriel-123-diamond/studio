@@ -13,7 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
-import { ClipboardPenLine, RotateCw, Save } from "lucide-react";
+import { ClipboardPenLine, RotateCw, Save, Eraser } from "lucide-react";
 import type { SalesEntryData } from "@/types/sales";
 import { initialProductQuantities, productTypes, productLabels } from "@/types/sales";
 import { submitSalesEntry, getTodaysSalesEntry } from "./_actions/submitSalesEntry";
@@ -51,10 +51,19 @@ interface ProductQuantityInputGroupProps {
   control: any;
   namePrefix: keyof SalesEntryFormValues;
   title: string;
-  isLoadingData: boolean; // New prop
+  isInputDisabled: boolean;
+  isLoadingSavedValue: boolean;
+  savedQuantities: ProductQuantities | undefined;
 }
 
-const ProductQuantityInputGroup: React.FC<ProductQuantityInputGroupProps> = ({ control, namePrefix, title, isLoadingData }) => (
+const ProductQuantityInputGroup: React.FC<ProductQuantityInputGroupProps> = ({ 
+    control, 
+    namePrefix, 
+    title, 
+    isInputDisabled, 
+    isLoadingSavedValue, 
+    savedQuantities 
+}) => (
   <Card className="shadow-md rounded-lg">
     <CardHeader className="p-4 bg-muted/20 rounded-t-lg">
       <CardTitle className="text-lg">{title}</CardTitle>
@@ -77,10 +86,14 @@ const ProductQuantityInputGroup: React.FC<ProductQuantityInputGroupProps> = ({ c
                   min="0"
                   className="rounded-md"
                   onChange={(e) => field.onChange(parseInt(e.target.value, 10) || 0)}
-                  disabled={isLoadingData} // Disable input while loading top-level data
+                  disabled={isInputDisabled}
                 />
                 <p className="text-xs text-muted-foreground mt-1">
-                  {isLoadingData ? "Loading..." : `Current Value: ${field.value !== undefined && field.value !== null ? field.value : 0}`}
+                  {isLoadingSavedValue ? (
+                    "Loading saved..."
+                  ) : (
+                    `Saved: ${savedQuantities && savedQuantities[product] !== undefined ? savedQuantities[product] : 0}`
+                  )}
                 </p>
               </>
             )}
@@ -94,13 +107,16 @@ const ProductQuantityInputGroup: React.FC<ProductQuantityInputGroupProps> = ({ c
 
 export default function SalesEntryPage() {
   const { toast } = useToast();
-  const [isLoadingData, setIsLoadingData] = useState(true); // Renamed for clarity
+  const [isLoadingUserDetails, setIsLoadingUserDetails] = useState(true);
+  const [isLoadingSalesEntry, setIsLoadingSalesEntry] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
   const [staffId, setStaffId] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
   const [isDataFinalized, setIsDataFinalized] = useState(false);
   const [todayDateDisplay, setTodayDateDisplay] = useState<string>("Loading date...");
+  const [savedSalesData, setSavedSalesData] = useState<SalesEntryFormValues | null>(null);
+
 
   const form = useForm<SalesEntryFormValues>({
     resolver: zodResolver(salesEntryFormSchema),
@@ -120,6 +136,7 @@ export default function SalesEntryPage() {
 
 
   const fetchCurrentUserDetails = useCallback(async (user: FirebaseUser) => {
+    setIsLoadingUserDetails(true);
     setUserId(user.uid);
     try {
       const userDocRef = doc(db, "users", user.uid);
@@ -135,14 +152,17 @@ export default function SalesEntryPage() {
       setStaffId(null);
       toast({ title: "Error", description: "Failed to fetch staff details.", variant: "destructive" });
     }
+    setIsLoadingUserDetails(false);
   }, [toast]);
 
   const loadTodaysData = useCallback(async (currentUserId: string) => {
     if (!currentUserId) {
-      setIsLoadingData(false);
+      setIsLoadingSalesEntry(false);
+      setSavedSalesData(defaultValues); // Ensure saved data is reset if no user
+      form.reset(defaultValues);
       return;
     }
-    setIsLoadingData(true);
+    setIsLoadingSalesEntry(true);
     const data = await getTodaysSalesEntry(currentUserId);
     if (data) {
       form.reset({
@@ -153,12 +173,14 @@ export default function SalesEntryPage() {
         returned: data.returned,
         damages: data.damages,
       });
+      setSavedSalesData(data as SalesEntryFormValues); // Cast as full form values for consistency
       setIsDataFinalized(data.isFinalized || false);
     } else {
       form.reset(defaultValues);
+      setSavedSalesData(defaultValues);
       setIsDataFinalized(false);
     }
-    setIsLoadingData(false);
+    setIsLoadingSalesEntry(false);
   }, [form]);
 
   useEffect(() => {
@@ -171,17 +193,26 @@ export default function SalesEntryPage() {
         setFirebaseUser(null);
         setUserId(null);
         setStaffId(null);
-        setIsLoadingData(false); // Stop loading if no user
+        setIsLoadingUserDetails(false);
+        setIsLoadingSalesEntry(false); 
+        setSavedSalesData(defaultValues);
+        form.reset(defaultValues);
       }
     });
     return () => unsubscribe();
-  }, [fetchCurrentUserDetails]);
+  }, [fetchCurrentUserDetails, form]);
 
   useEffect(() => {
     if (userId) {
       loadTodaysData(userId);
+    } else {
+      // If no userId (e.g., logged out), reset everything
+      setIsLoadingSalesEntry(false);
+      setSavedSalesData(defaultValues);
+      form.reset(defaultValues);
+      setIsDataFinalized(false);
     }
-  }, [userId, loadTodaysData]);
+  }, [userId, loadTodaysData, form]);
 
 
   async function onSubmit(values: SalesEntryFormValues) {
@@ -201,8 +232,7 @@ export default function SalesEntryPage() {
         title: "Success!",
         description: result.message,
       });
-      // Optionally re-load data to ensure UI consistency if needed, though form state is already current
-      // if (userId) await loadTodaysData(userId); 
+      setSavedSalesData(values); // Update saved data display on successful save
     } else {
       toast({
         title: "Submission Failed",
@@ -213,7 +243,17 @@ export default function SalesEntryPage() {
     setIsSubmitting(false);
   }
 
-  if (isLoadingData && !userId && firebaseUser === null) { // More specific initial loading skeleton
+  const handleResetForm = () => {
+    form.reset(defaultValues);
+    setSavedSalesData(defaultValues); // Also reset the "Saved: X" display to zeros
+    toast({ title: "Form Reset", description: "All fields have been cleared to zero."});
+  };
+  
+  const isPageLoading = isLoadingUserDetails || (userId && isLoadingSalesEntry && !savedSalesData);
+  const isFormDisabled = isSubmitting || isLoadingUserDetails || isLoadingSalesEntry || isDataFinalized || !userId || !staffId;
+
+
+  if (isLoadingUserDetails && !userId && firebaseUser === null) { 
     return (
       <div className="w-full space-y-6">
         <Card className="shadow-lg rounded-lg">
@@ -240,6 +280,7 @@ export default function SalesEntryPage() {
             ))}
           </CardContent>
            <CardFooter className="p-6 border-t flex justify-end">
+            <Skeleton className="h-10 w-24 rounded-md mr-2" />
             <Skeleton className="h-10 w-24 rounded-md" />
           </CardFooter>
         </Card>
@@ -256,7 +297,7 @@ export default function SalesEntryPage() {
             <div>
               <CardTitle className="text-3xl">Daily Sales Entry</CardTitle>
               <CardDescription className="text-md">
-                Enter sales data for {todayDateDisplay}. (Staff ID: {staffId || (isLoadingData ? "Loading..." : "N/A")})
+                Enter sales data for {todayDateDisplay}. (Staff ID: {staffId || (isLoadingUserDetails ? "Loading..." : "N/A")})
               </CardDescription>
             </div>
           </div>
@@ -268,7 +309,7 @@ export default function SalesEntryPage() {
         </CardHeader>
         <form onSubmit={form.handleSubmit(onSubmit)}>
           <CardContent className="p-6 space-y-8">
-          {isLoadingData && userId ? ( // Show skeleton when userId is present but data is loading
+          {isPageLoading && !savedSalesData ? ( 
             <div className="space-y-4">
                 {[1,2,3].map(i => (
                     <div key={i} className="space-y-2">
@@ -284,36 +325,69 @@ export default function SalesEntryPage() {
             </div>
           ) : (
             <>
-              <ProductQuantityInputGroup control={form.control} namePrefix="collected" title="Quantity Collected from Store" isLoadingData={isLoadingData} />
+              <ProductQuantityInputGroup control={form.control} namePrefix="collected" title="Quantity Collected from Store" 
+                isInputDisabled={isFormDisabled} 
+                isLoadingSavedValue={isLoadingSalesEntry} 
+                savedQuantities={savedSalesData?.collected} 
+              />
               <Separator />
               <Card className="shadow-md rounded-lg">
                   <CardHeader className="p-4 bg-muted/20 rounded-t-lg"><CardTitle className="text-xl">Quantity Sold</CardTitle></CardHeader>
                   <CardContent className="p-4 space-y-6">
-                      <ProductQuantityInputGroup control={form.control} namePrefix="soldCash" title="Sold (Cash)" isLoadingData={isLoadingData}/>
-                      <ProductQuantityInputGroup control={form.control} namePrefix="soldTransfer" title="Sold (Transfer)" isLoadingData={isLoadingData}/>
-                      <ProductQuantityInputGroup control={form.control} namePrefix="soldCard" title="Sold (Card)" isLoadingData={isLoadingData}/>
+                      <ProductQuantityInputGroup control={form.control} namePrefix="soldCash" title="Sold (Cash)" 
+                        isInputDisabled={isFormDisabled} 
+                        isLoadingSavedValue={isLoadingSalesEntry} 
+                        savedQuantities={savedSalesData?.soldCash}
+                      />
+                      <ProductQuantityInputGroup control={form.control} namePrefix="soldTransfer" title="Sold (Transfer)" 
+                        isInputDisabled={isFormDisabled} 
+                        isLoadingSavedValue={isLoadingSalesEntry} 
+                        savedQuantities={savedSalesData?.soldTransfer}
+                      />
+                      <ProductQuantityInputGroup control={form.control} namePrefix="soldCard" title="Sold (Card)" 
+                        isInputDisabled={isFormDisabled} 
+                        isLoadingSavedValue={isLoadingSalesEntry} 
+                        savedQuantities={savedSalesData?.soldCard}
+                      />
                   </CardContent>
               </Card>
               <Separator />
-              <ProductQuantityInputGroup control={form.control} namePrefix="returned" title="Quantity Returned to Store" isLoadingData={isLoadingData}/>
+              <ProductQuantityInputGroup control={form.control} namePrefix="returned" title="Quantity Returned to Store" 
+                isInputDisabled={isFormDisabled} 
+                isLoadingSavedValue={isLoadingSalesEntry} 
+                savedQuantities={savedSalesData?.returned}
+              />
               <Separator />
-              <ProductQuantityInputGroup control={form.control} namePrefix="damages" title="Damages" isLoadingData={isLoadingData}/>
+              <ProductQuantityInputGroup control={form.control} namePrefix="damages" title="Damages" 
+                isInputDisabled={isFormDisabled} 
+                isLoadingSavedValue={isLoadingSalesEntry} 
+                savedQuantities={savedSalesData?.damages}
+              />
             </>
             )}
           </CardContent>
           <CardFooter className="p-6 border-t flex flex-col sm:flex-row justify-end items-center gap-3">
-             <Button
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleResetForm}
+              disabled={isSubmitting || isLoadingUserDetails || isLoadingSalesEntry || isDataFinalized || !userId}
+              className="w-full sm:w-auto rounded-md"
+            >
+              <Eraser className="mr-2 h-4 w-4" /> Reset Form
+            </Button>
+            <Button
               type="button"
               variant="outline"
               onClick={() => userId && loadTodaysData(userId)}
-              disabled={isSubmitting || isLoadingData || !userId}
+              disabled={isSubmitting || isLoadingUserDetails || isLoadingSalesEntry || !userId}
               className="w-full sm:w-auto rounded-md"
             >
-              <RotateCw className="mr-2 h-4 w-4" /> Reset / Reload Today's Data
+              <RotateCw className="mr-2 h-4 w-4" /> Reload Today's Data
             </Button>
             <Button
               type="submit"
-              disabled={isSubmitting || isLoadingData || isDataFinalized || !userId || !staffId}
+              disabled={isFormDisabled}
               className="w-full sm:w-auto bg-primary text-primary-foreground hover:bg-primary/90 rounded-md"
             >
               <Save className="mr-2 h-4 w-4" />
@@ -325,3 +399,6 @@ export default function SalesEntryPage() {
     </div>
   );
 }
+
+
+    
