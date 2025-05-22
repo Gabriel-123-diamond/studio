@@ -16,7 +16,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
-import { Users, UserCog, PlusCircle, Trash2, AlertTriangle, Eye, EyeOff, Send, Loader2, UserPlus } from "lucide-react";
+import { Users as UsersIcon, UserCog, PlusCircle, Trash2, AlertTriangle, Eye, EyeOff, Send, Loader2, UserPlus } from "lucide-react"; // Renamed Users to UsersIcon to avoid conflict
 import { Skeleton } from '@/components/ui/skeleton';
 import type { UserData } from "@/types/users";
 import { addUserAction, deleteUserFirestoreAction, requestUserDeletionAction, requestAddUserAction } from "./_actions/manageUsers";
@@ -155,11 +155,22 @@ export default function StaffManagementPage() {
     
     setIsLoadingStaffList(true);
     console.log('Attempting to fetch staff list. Current user for query context:', currentUser);
-    const q = query(
-      collection(db, "users"), 
-      where("role", "==", UserRoleEnum.STAFF)
-    );
-    const unsubscribe = onSnapshot(q, (querySnapshot) => {
+    
+    let usersQuery;
+    if (currentUser.role === UserRoleEnum.MANAGER || currentUser.role === UserRoleEnum.DEVELOPER) {
+      // Managers/Developers see all users, ordered by name
+      usersQuery = query(collection(db, "users"), orderBy("name"));
+    } else if (currentUser.role === UserRoleEnum.SUPERVISOR) {
+      // Supervisors see only 'staff' role users
+      usersQuery = query(collection(db, "users"), where("role", "==", UserRoleEnum.STAFF), orderBy("name"));
+    } else {
+      // Other roles see an empty list or could be restricted further
+      setStaffList([]);
+      setIsLoadingStaffList(false);
+      return;
+    }
+
+    const unsubscribe = onSnapshot(usersQuery, (querySnapshot) => {
       const users: UserData[] = [];
       querySnapshot.forEach((doc) => {
         users.push({ id: doc.id, ...doc.data() } as UserData);
@@ -172,7 +183,7 @@ export default function StaffManagementPage() {
         title: "Error Fetching Staff", 
         description: "Could not fetch staff list. Open browser developer console (F12, then Console tab) to see the full Firebase error message. It may suggest creating an index or indicate a permissions issue.", 
         variant: "destructive",
-        duration: 10000 // Keep toast longer
+        duration: 10000 
       });
       setIsLoadingStaffList(false);
     });
@@ -223,6 +234,7 @@ export default function StaffManagementPage() {
 
 
   const openRequestDeletionDialog = (user: UserData) => {
+    // Supervisors can only request deletion for 'staff' role users.
     if (user.role !== UserRoleEnum.STAFF) { 
         toast({title: "Action Not Allowed", description: "You can only request deletion for users with the 'Staff' role.", variant: "destructive"});
         return;
@@ -241,7 +253,7 @@ export default function StaffManagementPage() {
     const result = await requestUserDeletionAction({
       targetUserUid: userToRequestDelete.id,
       targetStaffId: userToRequestDelete.staffId,
-      targetUserName: userToRequestDelete.name, // name is guaranteed to be set on UserData type
+      targetUserName: userToRequestDelete.name || `User (ID: ${userToRequestDelete.staffId || 'N/A'})`,
       targetUserRole: userToRequestDelete.role,
       reasonForRequest: values.reasonForRequest,
     }, { uid: currentUser.uid, name: currentUser.name, role: currentUser.role });
@@ -275,11 +287,17 @@ export default function StaffManagementPage() {
   };
 
 
-  const pageIcon = canManageUsers ? Users : UserCog;
+  const pageIcon = canManageUsers ? UsersIcon : UserCog;
   const descriptionText = () => {
-    if (canManageUsers) return "Oversee staff members. You can add new users (of any role via 'Add New User' button) and manage their Firestore records. This list displays users with the 'staff' role.";
-    if (isSupervisor) return "View staff members with the 'staff' role. Request to add new staff or request deletion for existing staff members.";
+    if (canManageUsers) return "Oversee all staff members. You can add new users (of any role) and manage their Firestore records. This list displays all users in the system.";
+    if (isSupervisor) return "View staff members with the 'staff' role under your supervision. Request to add new staff or request deletion for existing staff members.";
     return "Staff information display. Limited access.";
+  };
+  
+  const emptyListMessage = () => {
+    if (canManageUsers) return "No users found in the system. Click 'Add New User' to get started.";
+    if (isSupervisor) return "No users with the 'staff' role found. You can request to add new staff members if needed.";
+    return "No staff information available.";
   };
 
   if (!isMounted || isLoadingCurrentUser) {
@@ -366,8 +384,7 @@ export default function StaffManagementPage() {
                                         <SelectTrigger id="role_req_add" className="mt-1 rounded-md"><SelectValue placeholder="Select role" /></SelectTrigger>
                                         <SelectContent>
                                             <SelectItem value={UserRoleEnum.STAFF}>Staff</SelectItem>
-                                            {/* Supervisors can only request to add 'staff' or other 'supervisors' under them */}
-                                            {/* <SelectItem value={UserRoleEnum.SUPERVISOR}>Supervisor</SelectItem> */}
+                                            {/* Supervisors can only request to add 'staff' roles */}
                                         </SelectContent>
                                     </Select>
                                     )}
@@ -391,11 +408,12 @@ export default function StaffManagementPage() {
             <div className="space-y-2"> {[1,2,3].map(i => <Skeleton key={i} className="h-12 w-full rounded-md" />)} </div>
           ) : staffList.length === 0 ? (
              <div className="mt-4 p-6 border-2 border-dashed border-muted-foreground/30 rounded-lg text-center bg-muted/10">
-                <Users className="h-10 w-10 text-primary/60 mx-auto mb-3" />
-                <p className="text-lg font-medium text-muted-foreground">No users with the 'staff' role found.</p>
-                <p className="text-sm text-muted-foreground mt-1">Please check your Firestore 'users' collection to ensure documents exist with a field 'role' set to 'staff'. Also, review your browser's developer console (F12) for any specific Firebase error messages if fetching continues to fail.</p>
-                {canManageUsers && <p className="text-sm text-muted-foreground mt-1">Click "Add New User" to add users (you can assign any role).</p>}
-                {isSupervisor && <p className="text-sm text-muted-foreground mt-1">You can request to add new staff members if needed.</p>}
+                <UsersIcon className="h-10 w-10 text-primary/60 mx-auto mb-3" />
+                <p className="text-lg font-medium text-muted-foreground">{emptyListMessage()}</p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Please check your Firestore 'users' collection. For supervisors, ensure users exist with `role: "staff"`.
+                  For managers/developers, ensure users exist in general. Also, review your browser's developer console (F12) for any specific Firebase error messages.
+                </p>
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -457,6 +475,3 @@ export default function StaffManagementPage() {
     </div>
   );
 }
-
-
-    
