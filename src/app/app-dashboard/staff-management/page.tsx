@@ -6,7 +6,7 @@ import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { auth, db } from "@/lib/firebase";
-import { doc, getDoc, collection, query, onSnapshot, orderBy } from "firebase/firestore";
+import { doc, getDoc, collection, query, onSnapshot, orderBy, where } from "firebase/firestore"; // Added where
 import type { User as FirebaseUser } from "firebase/auth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
@@ -156,7 +156,12 @@ export default function StaffManagementPage() {
     }
     
     setIsLoadingStaffList(true);
-    const q = query(collection(db, "users"), orderBy("name"));
+    // Query for users with role "staff" and order by name
+    const q = query(
+      collection(db, "users"), 
+      where("role", "==", UserRoleEnum.STAFF), 
+      orderBy("name")
+    );
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
       const users: UserData[] = [];
       querySnapshot.forEach((doc) => {
@@ -220,6 +225,10 @@ export default function StaffManagementPage() {
         toast({title: "Action Not Allowed", description: "Supervisors cannot request deletion of other supervisors, managers, or developers.", variant: "destructive"});
         return;
     }
+    if (user.role !== UserRoleEnum.STAFF) { // Ensure supervisor can only request deletion for 'staff' role
+        toast({title: "Action Not Allowed", description: "You can only request deletion for users with the 'Staff' role.", variant: "destructive"});
+        return;
+    }
     setUserToRequestDelete(user);
     requestDeletionForm.reset({reasonForRequest: ""});
     setIsRequestDeleteDialogOpen(true);
@@ -268,13 +277,30 @@ export default function StaffManagementPage() {
 
   const pageIcon = canManageUsers ? Users : UserCog;
   const descriptionText = () => {
-    if (canManageUsers) return "Oversee all staff. Add new staff or remove existing ones from Firestore.";
-    if (isSupervisor) return "View staff. Request to add new staff or request deletion for existing staff members.";
+    if (canManageUsers) return "Oversee staff members. You can add new users (of any role via 'Add New User' button) and manage their Firestore records. This list displays users with the 'staff' role.";
+    if (isSupervisor) return "View staff members. Request to add new staff or request deletion for existing staff members.";
     return "Staff information display. Limited access.";
   };
 
   if (!isMounted || isLoadingCurrentUser) {
-    return <div className="p-6"><Skeleton className="h-10 w-1/2 mb-4" /><Skeleton className="h-48 w-full" /></div>;
+    return (
+      <div className="p-6">
+        <Card className="shadow-lg rounded-lg">
+          <CardHeader className="bg-muted/30 p-6 rounded-t-lg">
+            <div className="flex items-center space-x-4">
+              <Skeleton className="h-10 w-10 rounded-full" />
+              <div>
+                <Skeleton className="h-8 w-48 mb-1 rounded" />
+                <Skeleton className="h-4 w-full rounded" />
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="p-6">
+            <Skeleton className="h-32 w-full rounded" />
+          </CardContent>
+        </Card>
+      </div>
+    );
   }
   if (!currentUser) {
     return <div className="p-6 text-destructive text-center">Error: Could not load your user details. Please try logging in again.</div>;
@@ -365,8 +391,8 @@ export default function StaffManagementPage() {
           ) : staffList.length === 0 ? (
              <div className="mt-4 p-6 border-2 border-dashed border-muted-foreground/30 rounded-lg text-center bg-muted/10">
                 <Users className="h-10 w-10 text-primary/60 mx-auto mb-3" />
-                <p className="text-lg font-medium text-muted-foreground">No staff members found.</p>
-                {canManageUsers && <p className="text-sm text-muted-foreground mt-1">Click "Add New User" to get started.</p>}
+                <p className="text-lg font-medium text-muted-foreground">No users with the 'staff' role found.</p>
+                {canManageUsers && <p className="text-sm text-muted-foreground mt-1">Click "Add New User" to add users (you can assign any role).</p>}
                 {isSupervisor && <p className="text-sm text-muted-foreground mt-1">You can request to add new staff members if needed.</p>}
             </div>
           ) : (
@@ -390,7 +416,7 @@ export default function StaffManagementPage() {
                             <Trash2 className="mr-1 h-4 w-4" /> Delete
                           </Button>
                         )}
-                        {isSupervisor && staff.role === UserRoleEnum.STAFF && (
+                        {isSupervisor && staff.role === UserRoleEnum.STAFF && ( // Supervisors can only request deletion for staff role
                            <Button variant="outline" size="sm" className="rounded-md border-amber-500 text-amber-600 hover:bg-amber-500/10" onClick={() => openRequestDeletionDialog(staff)} disabled={isSubmitting}>
                              <Send className="mr-1 h-4 w-4" /> Request Deletion
                            </Button>
