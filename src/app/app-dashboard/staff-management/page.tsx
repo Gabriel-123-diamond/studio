@@ -64,7 +64,7 @@ type RequestDeletionFormValues = z.infer<typeof requestDeletionSchema>;
 const requestAddUserFormSchema = z.object({
   name: z.string().min(3, "Name must be at least 3 characters."),
   staffId: z.string().regex(/^\d{6}$/, "Staff ID must be exactly 6 digits."),
-  role: z.enum([UserRoleEnum.STAFF, UserRoleEnum.SUPERVISOR]),
+  role: z.enum([UserRoleEnum.STAFF, UserRoleEnum.SUPERVISOR]), // Supervisors can only request to add staff or supervisor
   initialPassword: z.string().min(6, "Password must be at least 6 characters.").optional().or(z.literal('')),
   reasonForRequest: z.string().max(200).optional().or(z.literal('')),
 });
@@ -158,13 +158,14 @@ export default function StaffManagementPage() {
 
     let usersQuery;
     if (currentUser.role === UserRoleEnum.MANAGER || currentUser.role === UserRoleEnum.DEVELOPER) {
-      console.log('[StaffManagementPage] Querying as Manager/Developer: Fetching ALL users, ordered by name.');
-      usersQuery = query(collection(db, "users"), orderBy("name"));
+      console.log('[StaffManagementPage] Querying as Manager/Developer: Fetching ALL users (temporarily without name order).');
+      // Temporarily remove orderBy("name") for diagnostics
+      usersQuery = query(collection(db, "users"));
     } else if (currentUser.role === UserRoleEnum.SUPERVISOR) {
       console.log('[StaffManagementPage] Querying as Supervisor: Fetching users with role "staff", ordered by name.');
       usersQuery = query(collection(db, "users"), where("role", "==", UserRoleEnum.STAFF), orderBy("name"));
     } else {
-      console.log('[StaffManagementPage] Current user role is neither Manager, Developer, nor Supervisor. Setting empty staff list.');
+      console.log('[StaffManagementPage] Current user role is not Manager, Developer, or Supervisor. Setting empty staff list.');
       setStaffList([]);
       setIsLoadingStaffList(false);
       return;
@@ -294,10 +295,10 @@ export default function StaffManagementPage() {
     return "Staff information display. Limited access.";
   };
 
-  const emptyListMessage = () => {
+ const emptyListMessage = () => {
     if (isLoadingStaffList) return "Loading staff list...";
-    if (canManageUsers) return "No users found in the system. Click 'Add New User' to get started, or check your Firestore 'users' collection and security rules.";
-    if (isSupervisor) return "No users with the 'staff' role found. You can request to add new staff members if needed, or check your Firestore 'users' collection for users with 'role: \"staff\"' and verify Firestore security rules.";
+    if (canManageUsers) return "No users found in the system. Click 'Add New User' to get started. Ensure your Firestore 'users' collection has data and check security rules. If ordering by name, ensure an index on 'name' field exists (check F12 console for Firebase links).";
+    if (isSupervisor) return "No users with the 'staff' role found. You can request to add new staff members. Ensure your Firestore 'users' collection has users with 'role: \"staff\"' and verify security rules. If ordering by name, check for an index on 'name' for staff (F12 console).";
     return "No staff information available.";
   };
 
@@ -375,7 +376,7 @@ export default function StaffManagementPage() {
                         <Button className="rounded-md bg-blue-600 hover:bg-blue-700"><UserPlus className="mr-2 h-5 w-5" /> Request Add User</Button>
                     </DialogTrigger>
                     <DialogContent className="sm:max-w-[425px]">
-                        <DialogHeader><DialogTitle>Request to Add New Staff</DialogTitle><DialogDescription>Submit a request for a manager to add this staff member.</DialogDescription></DialogHeader>
+                        <DialogHeader><DialogTitle>Request to Add New Staff</DialogTitle><DialogDescription>Submit a request for a manager to add this staff member. Supervisors can only request 'staff' or 'supervisor' roles.</DialogDescription></DialogHeader>
                         <form onSubmit={requestAddUserForm.handleSubmit(handleRequestAddUser)} className="space-y-4 py-4">
                             <div><Label htmlFor="name_req_add">Full Name</Label><Input id="name_req_add" {...requestAddUserForm.register("name")} className="mt-1 rounded-md" />{requestAddUserForm.formState.errors.name && <p className="text-sm text-destructive mt-1">{requestAddUserForm.formState.errors.name.message}</p>}</div>
                             <div><Label htmlFor="staffId_req_add">Staff ID (6 digits)</Label><Input id="staffId_req_add" {...requestAddUserForm.register("staffId")} className="mt-1 rounded-md" maxLength={6} />{requestAddUserForm.formState.errors.staffId && <p className="text-sm text-destructive mt-1">{requestAddUserForm.formState.errors.staffId.message}</p>}</div>
@@ -386,7 +387,7 @@ export default function StaffManagementPage() {
                                         <SelectTrigger id="role_req_add" className="mt-1 rounded-md"><SelectValue placeholder="Select role" /></SelectTrigger>
                                         <SelectContent>
                                             <SelectItem value={UserRoleEnum.STAFF}>Staff</SelectItem>
-                                            {/* Supervisors can only request to add 'staff' roles */}
+                                            <SelectItem value={UserRoleEnum.SUPERVISOR}>Supervisor</SelectItem>
                                         </SelectContent>
                                     </Select>
                                     )}
@@ -412,10 +413,6 @@ export default function StaffManagementPage() {
              <div className="mt-4 p-6 border-2 border-dashed border-muted-foreground/30 rounded-lg text-center bg-muted/10">
                 <UsersIcon className="h-10 w-10 text-primary/60 mx-auto mb-3" />
                 <p className="text-lg font-medium text-muted-foreground">{emptyListMessage()}</p>
-                <p className="text-sm text-muted-foreground mt-1">
-                  {canManageUsers ? "Please check your Firestore 'users' collection and security rules." : "For supervisors, ensure users exist with 'role: \"staff\"' and verify Firestore security rules." }
-                  Review your browser's developer console (F12) for any specific Firebase error messages.
-                </p>
             </div>
           ) : (
             <div className="overflow-x-auto">
