@@ -196,12 +196,29 @@ export default function NotificationsPage() {
               {[1, 2, 3].map(i => <Skeleton key={i} className="h-24 w-full rounded-lg" />)}
             </div>
           ) : notifications.length === 0 ? (
-            <div className="mt-8 p-8 border border-dashed border-muted-foreground/50 rounded-lg text-center flex-1 flex flex-col justify-center items-center">
-              <MessageSquareWarning className="h-12 w-12 text-primary/70 mb-4" />
-              <p className="text-xl font-semibold text-muted-foreground">No Notifications Yet</p>
-              <p className="text-sm text-muted-foreground mt-2">
+             <div className="mt-4 p-6 border-2 border-dashed border-muted-foreground/30 rounded-lg text-center flex-1 flex flex-col justify-center items-center bg-muted/10">
+                <MessageSquareWarning className="h-10 w-10 text-primary/60 mb-3" />
+                <p className="text-lg font-medium text-muted-foreground">No Real Notifications Yet</p>
+                <p className="text-xs text-muted-foreground mt-1 mb-4">
                 {canSendNotifications ? "Send a notification to get started, or check back later." : "Check back later for updates."}
-              </p>
+                </p>
+                
+                <div className="w-full max-w-lg p-3 border border-dashed border-muted-foreground/20 rounded-md bg-card/50 shadow-sm">
+                  <p className="text-xs text-muted-foreground mb-1.5 text-left font-medium">Example Notification:</p>
+                  <Card className="shadow-sm rounded-lg text-left w-full">
+                    <CardHeader className="p-3 pb-1.5">
+                      <CardTitle className="text-base leading-tight">Important: Early Meeting Tomorrow</CardTitle>
+                      <CardDescription className="text-xs text-muted-foreground pt-0.5">
+                        Sent by: Manager (manager) - Just now (example)
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="p-3 pt-1">
+                      <p className="text-sm text-foreground/80">
+                        All staff are requested to come in 30 minutes early tomorrow for an urgent team meeting. Please be on time.
+                      </p>
+                    </CardContent>
+                  </Card>
+                </div>
             </div>
           ) : (
             <ScrollArea className="flex-1 pr-2"> {/* ScrollArea takes remaining space */}
