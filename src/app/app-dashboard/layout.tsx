@@ -7,14 +7,14 @@ import { usePathname, useRouter } from 'next/navigation';
 import React, { useEffect, useState } from 'react';
 import { 
   Home, Settings, User, LogOut, MenuSquare, 
-  Users, CheckCircle, LineChart, History, Shield, // Manager/Dev icons
+  Users, CheckCircle, LineChart, History, ShieldCheck as Shield, // Manager/Dev icons, changed Shield to ShieldCheck
   UserCog, Send, ListChecks, // Supervisor icons
   Bell as BellIcon, ClipboardPenLine // Staff icons (ClipboardPenLine for Sales Entry)
 } from 'lucide-react';
 import { auth, db } from "@/lib/firebase";
 import { onAuthStateChanged, signOut as firebaseSignOut, type User as FirebaseUser } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
-import type { UserData } from '@/types/users'; // Import UserData type
+import type { UserData } from '@/types/users'; 
 
 import {
   SidebarProvider,
@@ -34,7 +34,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'; 
 
-enum UserRoleEnum { // Renamed to avoid conflict if UserRole is used elsewhere
+enum UserRoleEnum { 
   MANAGER = "manager",
   SUPERVISOR = "supervisor",
   STAFF = "staff",
@@ -57,15 +57,35 @@ const getPageTitle = (pathname: string): string => {
   return 'Meal Villa'; 
 };
 
+const LoadingScreen = () => (
+  <div className="flex min-h-screen items-center justify-center bg-background">
+    <div className="flex flex-col items-center space-y-4">
+      <svg className="animate-spin h-10 w-10 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+      </svg>
+      <p className="text-lg text-muted-foreground">Loading your Meal Villa experience...</p>
+    </div>
+  </div>
+);
+
 export default function AppDashboardLayout({ children }: { children: ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const { toast } = useToast();
-  const [currentUserData, setCurrentUserData] = useState<UserData | null>(null); // Store full UserData
+  
+  const [isMounted, setIsMounted] = useState(false);
+  const [currentUserData, setCurrentUserData] = useState<UserData | null>(null);
   const [isLoadingSession, setIsLoadingSession] = useState(true);
-  const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null); // Keep firebaseUser for auth state
+  const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
 
   useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (!isMounted) return;
+
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
         setFirebaseUser(user);
@@ -91,12 +111,23 @@ export default function AppDashboardLayout({ children }: { children: ReactNode }
       } else {
         setCurrentUserData(null);
         setFirebaseUser(null);
-        router.push('/login');
       }
       setIsLoadingSession(false);
     });
     return () => unsubscribe();
-  }, [router, toast]);
+  }, [isMounted, toast]);
+
+
+  useEffect(() => {
+    if (!isMounted || isLoadingSession) return;
+
+    if (!firebaseUser) {
+      if (!pathname.startsWith('/login')) { // Check if not already on login
+        router.push('/login');
+      }
+    }
+  }, [isMounted, isLoadingSession, firebaseUser, router, pathname]);
+
 
   const handleLogout = async () => {
     try {
@@ -113,20 +144,6 @@ export default function AppDashboardLayout({ children }: { children: ReactNode }
 
   const pageTitle = getPageTitle(pathname);
   const currentUserRole = currentUserData?.role || UserRoleEnum.NONE;
-
-  if (isLoadingSession) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-background">
-        <div className="flex flex-col items-center space-y-4">
-          <svg className="animate-spin h-10 w-10 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-          </svg>
-          <p className="text-lg text-muted-foreground">Loading your Meal Villa experience...</p>
-        </div>
-      </div>
-    );
-  }
   
   const isManager = currentUserRole === UserRoleEnum.MANAGER;
   const isSupervisor = currentUserRole === UserRoleEnum.SUPERVISOR;
@@ -140,9 +157,11 @@ export default function AppDashboardLayout({ children }: { children: ReactNode }
   const avatarFallback = userNameDisplay.substring(0,2).toUpperCase();
   
   const canAccessPage = () => {
-    if (isLoadingSession) return true; 
+    if (!isMounted || isLoadingSession) return true; // Allow rendering loading spinner or initial content
+
+    // If still loading or not mounted, don't make access decisions yet
     if (currentUserRole === UserRoleEnum.NONE && !(pathname === '/app-dashboard/profile' || pathname === '/app-dashboard/settings')) {
-      if (!router.pathname.startsWith('/login')) router.push('/login'); // Redirect if no role and not already trying to login
+      if (!pathname.startsWith('/login')) router.push('/login'); // Use pathname here
       return false;
     }
     
@@ -162,7 +181,7 @@ export default function AppDashboardLayout({ children }: { children: ReactNode }
     }
     if (isSupervisor) {
       if (managerRoutes.includes(pathname) || devRoutes.includes(pathname)) return false;
-      if (pathname === sharedApprovalRoute || pathname === sharedStaffManagementRoute || supervisorRoutes.includes(pathname)) return true;
+      if (pathname === sharedApprovalRoute || pathname === sharedStaffManagementRoute || supervisorRoutes.includes(pathname) || staffRoutes.includes(pathname)) return true;
     }
     if (isStaff) {
       if (managerRoutes.includes(pathname) || devRoutes.includes(pathname) || supervisorRoutes.includes(pathname) || pathname === sharedApprovalRoute || pathname === sharedStaffManagementRoute) return false;
@@ -172,8 +191,27 @@ export default function AppDashboardLayout({ children }: { children: ReactNode }
     // Common pages accessible by all authenticated users
     if (pathname === '/app-dashboard' || pathname === '/app-dashboard/profile' || pathname === '/app-dashboard/settings') return true;
 
+    // If no specific rule matched for an authenticated user with a role, and it's not a common page, deny
+    if (currentUserRole !== UserRoleEnum.NONE) { 
+      // For example, if a staff tries to access a supervisor-only page not explicitly listed above
+      const allAllowedSupervisorRoutes = [...supervisorRoutes, sharedApprovalRoute, sharedStaffManagementRoute, ...staffRoutes, '/app-dashboard/notifications', '/app-dashboard', '/app-dashboard/profile', '/app-dashboard/settings'];
+      if (isSupervisor && allAllowedSupervisorRoutes.includes(pathname)) return true;
+
+      const allAllowedStaffRoutes = [...staffRoutes, '/app-dashboard', '/app-dashboard/profile', '/app-dashboard/settings', '/app-dashboard/notifications'];
+      if (isStaff && allAllowedStaffRoutes.includes(pathname)) return true;
+    }
+
+
     return false; 
   };
+
+  if (!isMounted || isLoadingSession) {
+    return <LoadingScreen />;
+  }
+
+  if (!firebaseUser && !pathname.startsWith('/login')) {
+    return <LoadingScreen />; // Continue showing loading while redirect effect runs
+  }
 
 
   return (
@@ -281,12 +319,6 @@ export default function AppDashboardLayout({ children }: { children: ReactNode }
               {isStaff && !isManager && !isDeveloper && !isSupervisor && (
                 <>
                   <SidebarMenuItem>
-                    <SidebarMenuButton href="/app-dashboard/notifications" tooltip="Notifications" isActive={pathname === '/app-dashboard/notifications'}>
-                      <BellIcon />
-                      <span>Notifications</span>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                  <SidebarMenuItem>
                     <SidebarMenuButton href="/app-dashboard/sales-entry" tooltip="Sales Entry" isActive={pathname === '/app-dashboard/sales-entry'}>
                       <ClipboardPenLine />
                       <span>Sales Entry</span>
@@ -295,7 +327,7 @@ export default function AppDashboardLayout({ children }: { children: ReactNode }
                 </>
               )}
                 {/* General Notifications Link - accessible by more roles if needed */}
-                {(isManager || isDeveloper || isSupervisor) && !isStaff && ( // Example: All except staff who have their own section
+                {(isManager || isDeveloper || isSupervisor || isStaff) && ( 
                      <SidebarMenuItem>
                         <SidebarMenuButton href="/app-dashboard/notifications" tooltip="Notifications" isActive={pathname === '/app-dashboard/notifications'}>
                         <BellIcon />
@@ -355,3 +387,5 @@ export default function AppDashboardLayout({ children }: { children: ReactNode }
     </SidebarProvider>
   );
 }
+
+    
