@@ -143,7 +143,7 @@ export async function requestUserDeletionAction(
       requestedByRole: supervisorUser.role,
       targetUserUid: input.targetUserUid,
       targetStaffId: input.targetStaffId,
-      targetUserName: input.targetUserName,
+      targetUserName: input.targetUserName || `User (ID: ${input.targetStaffId || 'N/A'})`, // Fallback if name is undefined
       targetUserRole: input.targetUserRole,
       status: "pending",
       requestTimestamp: serverTimestamp() as Timestamp,
@@ -151,12 +151,15 @@ export async function requestUserDeletionAction(
     };
     await setDoc(requestDocRef, newRequest);
 
+    // Ensure targetUserName is defined for the notification
+    const notificationTargetUserName = newRequest.targetUserName;
+
     await sendNotificationAction({
         senderId: supervisorUser.uid,
         senderName: supervisorUser.name || "System (Deletion Request)",
         senderRole: supervisorUser.role,
         title: "New Staff Deletion Request",
-        message: `A request to delete staff ${input.targetUserName} (ID: ${input.targetStaffId}) has been submitted by ${supervisorUser.name}. Please review in Approval Requests.`,
+        message: `A request to delete staff ${notificationTargetUserName} (ID: ${input.targetStaffId}) has been submitted by ${supervisorUser.name}. Please review in Approval Requests.`,
     });
 
     revalidatePath("/app-dashboard/staff-management");
@@ -190,6 +193,7 @@ export async function requestAddUserAction(
     return { success: false, message: "Staff ID must be exactly 6 digits." };
   }
   if (!input.name.trim()) {
+    // This should be caught by client-side Zod validation, but good to have a server check
     return { success: false, message: "Name cannot be empty." };
   }
   if (!input.role || input.role === "none") {
@@ -212,7 +216,7 @@ export async function requestAddUserAction(
       requestedByUid: supervisorUser.uid,
       requestedByName: supervisorUser.name || "Supervisor",
       requestedByRole: supervisorUser.role,
-      targetUserName: input.name,
+      targetUserName: input.name, // Name is guaranteed by Zod on client, and checked above.
       targetStaffId: input.staffId,
       targetUserRole: input.role,
       initialPassword: input.initialPassword || "password", // Default if not provided
@@ -242,3 +246,4 @@ export async function requestAddUserAction(
     return { success: false, message: error.message || "Failed to submit add staff request." };
   }
 }
+
