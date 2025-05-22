@@ -203,7 +203,7 @@ export default function NotificationsPage() {
                 {canSendNotifications ? "Send a notification to get started, or check back later." : "Check back later for updates."}
                 </p>
                 
-                <div className="w-full max-w-lg p-3 border border-dashed border-muted-foreground/20 rounded-md bg-card/50 shadow-sm">
+                <div className="w-full p-3 border border-dashed border-muted-foreground/20 rounded-md bg-card/50 shadow-sm"> {/* Removed max-w-lg */}
                   <p className="text-xs text-muted-foreground mb-1.5 text-left font-medium">Example Notification:</p>
                   <Card className="shadow-sm rounded-lg text-left w-full">
                     <CardHeader className="p-3 pb-1.5">
