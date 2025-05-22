@@ -48,20 +48,21 @@ const defaultValues: SalesEntryFormValues = {
 };
 
 interface ProductQuantityInputGroupProps {
-  control: any; 
+  control: any;
   namePrefix: keyof SalesEntryFormValues;
   title: string;
+  isLoadingData: boolean; // New prop
 }
 
-const ProductQuantityInputGroup: React.FC<ProductQuantityInputGroupProps> = ({ control, namePrefix, title }) => (
+const ProductQuantityInputGroup: React.FC<ProductQuantityInputGroupProps> = ({ control, namePrefix, title, isLoadingData }) => (
   <Card className="shadow-md rounded-lg">
     <CardHeader className="p-4 bg-muted/20 rounded-t-lg">
       <CardTitle className="text-lg">{title}</CardTitle>
     </CardHeader>
-    <CardContent className="p-4 grid grid-cols-2 md:grid-cols-4 gap-x-4 gap-y-6"> {/* Increased gap-y */}
+    <CardContent className="p-4 grid grid-cols-2 md:grid-cols-4 gap-x-4 gap-y-6">
       {productTypes.map((product) => (
         <div key={product} className="space-y-1.5">
-          <Label htmlFor={`${namePrefix}.${product}`} className="text-sm font-medium"> 
+          <Label htmlFor={`${namePrefix}.${product}`} className="text-sm font-medium">
             {productLabels[product]}
           </Label>
           <Controller
@@ -76,9 +77,10 @@ const ProductQuantityInputGroup: React.FC<ProductQuantityInputGroupProps> = ({ c
                   min="0"
                   className="rounded-md"
                   onChange={(e) => field.onChange(parseInt(e.target.value, 10) || 0)}
+                  disabled={isLoadingData} // Disable input while loading top-level data
                 />
                 <p className="text-xs text-muted-foreground mt-1">
-                  Current Value: {field.value !== undefined && field.value !== null ? field.value : 0}
+                  {isLoadingData ? "Loading..." : `Current Value: ${field.value !== undefined && field.value !== null ? field.value : 0}`}
                 </p>
               </>
             )}
@@ -92,7 +94,7 @@ const ProductQuantityInputGroup: React.FC<ProductQuantityInputGroupProps> = ({ c
 
 export default function SalesEntryPage() {
   const { toast } = useToast();
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingData, setIsLoadingData] = useState(true); // Renamed for clarity
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
   const [staffId, setStaffId] = useState<string | null>(null);
@@ -106,7 +108,6 @@ export default function SalesEntryPage() {
   });
 
   useEffect(() => {
-    // Set the display date using WAT
     const options: Intl.DateTimeFormatOptions = {
       weekday: 'long',
       year: 'numeric',
@@ -138,11 +139,11 @@ export default function SalesEntryPage() {
 
   const loadTodaysData = useCallback(async (currentUserId: string) => {
     if (!currentUserId) {
-      setIsLoading(false);
+      setIsLoadingData(false);
       return;
     }
-    setIsLoading(true);
-    const data = await getTodaysSalesEntry(currentUserId); // Server action now uses WAT
+    setIsLoadingData(true);
+    const data = await getTodaysSalesEntry(currentUserId);
     if (data) {
       form.reset({
         collected: data.collected,
@@ -154,10 +155,10 @@ export default function SalesEntryPage() {
       });
       setIsDataFinalized(data.isFinalized || false);
     } else {
-      form.reset(defaultValues); // Reset to zeros if no data for WAT "today"
+      form.reset(defaultValues);
       setIsDataFinalized(false);
     }
-    setIsLoading(false);
+    setIsLoadingData(false);
   }, [form]);
 
   useEffect(() => {
@@ -165,11 +166,12 @@ export default function SalesEntryPage() {
       if (user) {
         setFirebaseUser(user);
         await fetchCurrentUserDetails(user);
+        // loadTodaysData will be called by the userId effect
       } else {
         setFirebaseUser(null);
         setUserId(null);
         setStaffId(null);
-        setIsLoading(false);
+        setIsLoadingData(false); // Stop loading if no user
       }
     });
     return () => unsubscribe();
@@ -199,6 +201,8 @@ export default function SalesEntryPage() {
         title: "Success!",
         description: result.message,
       });
+      // Optionally re-load data to ensure UI consistency if needed, though form state is already current
+      // if (userId) await loadTodaysData(userId); 
     } else {
       toast({
         title: "Submission Failed",
@@ -209,7 +213,7 @@ export default function SalesEntryPage() {
     setIsSubmitting(false);
   }
 
-  if (isLoading && !userId) { 
+  if (isLoadingData && !userId && firebaseUser === null) { // More specific initial loading skeleton
     return (
       <div className="w-full space-y-6">
         <Card className="shadow-lg rounded-lg">
@@ -242,7 +246,7 @@ export default function SalesEntryPage() {
       </div>
     );
   }
-  
+
   return (
     <div className="w-full">
       <Card className="shadow-xl rounded-lg overflow-hidden">
@@ -252,7 +256,7 @@ export default function SalesEntryPage() {
             <div>
               <CardTitle className="text-3xl">Daily Sales Entry</CardTitle>
               <CardDescription className="text-md">
-                Enter sales data for {todayDateDisplay}. (Staff ID: {staffId || "Loading..."})
+                Enter sales data for {todayDateDisplay}. (Staff ID: {staffId || (isLoadingData ? "Loading..." : "N/A")})
               </CardDescription>
             </div>
           </div>
@@ -264,7 +268,7 @@ export default function SalesEntryPage() {
         </CardHeader>
         <form onSubmit={form.handleSubmit(onSubmit)}>
           <CardContent className="p-6 space-y-8">
-          {isLoading ? (
+          {isLoadingData && userId ? ( // Show skeleton when userId is present but data is loading
             <div className="space-y-4">
                 {[1,2,3].map(i => (
                     <div key={i} className="space-y-2">
@@ -280,22 +284,20 @@ export default function SalesEntryPage() {
             </div>
           ) : (
             <>
-              <ProductQuantityInputGroup control={form.control} namePrefix="collected" title="Quantity Collected from Store" />
-              
+              <ProductQuantityInputGroup control={form.control} namePrefix="collected" title="Quantity Collected from Store" isLoadingData={isLoadingData} />
               <Separator />
               <Card className="shadow-md rounded-lg">
                   <CardHeader className="p-4 bg-muted/20 rounded-t-lg"><CardTitle className="text-xl">Quantity Sold</CardTitle></CardHeader>
                   <CardContent className="p-4 space-y-6">
-                      <ProductQuantityInputGroup control={form.control} namePrefix="soldCash" title="Sold (Cash)" />
-                      <ProductQuantityInputGroup control={form.control} namePrefix="soldTransfer" title="Sold (Transfer)" />
-                      <ProductQuantityInputGroup control={form.control} namePrefix="soldCard" title="Sold (Card)" />
+                      <ProductQuantityInputGroup control={form.control} namePrefix="soldCash" title="Sold (Cash)" isLoadingData={isLoadingData}/>
+                      <ProductQuantityInputGroup control={form.control} namePrefix="soldTransfer" title="Sold (Transfer)" isLoadingData={isLoadingData}/>
+                      <ProductQuantityInputGroup control={form.control} namePrefix="soldCard" title="Sold (Card)" isLoadingData={isLoadingData}/>
                   </CardContent>
               </Card>
-              
               <Separator />
-              <ProductQuantityInputGroup control={form.control} namePrefix="returned" title="Quantity Returned to Store" />
+              <ProductQuantityInputGroup control={form.control} namePrefix="returned" title="Quantity Returned to Store" isLoadingData={isLoadingData}/>
               <Separator />
-              <ProductQuantityInputGroup control={form.control} namePrefix="damages" title="Damages" />
+              <ProductQuantityInputGroup control={form.control} namePrefix="damages" title="Damages" isLoadingData={isLoadingData}/>
             </>
             )}
           </CardContent>
@@ -303,15 +305,15 @@ export default function SalesEntryPage() {
              <Button
               type="button"
               variant="outline"
-              onClick={() => userId && loadTodaysData(userId)} 
-              disabled={isSubmitting || isLoading || !userId}
+              onClick={() => userId && loadTodaysData(userId)}
+              disabled={isSubmitting || isLoadingData || !userId}
               className="w-full sm:w-auto rounded-md"
             >
               <RotateCw className="mr-2 h-4 w-4" /> Reset / Reload Today's Data
             </Button>
-            <Button 
-              type="submit" 
-              disabled={isSubmitting || isLoading || isDataFinalized || !userId || !staffId} 
+            <Button
+              type="submit"
+              disabled={isSubmitting || isLoadingData || isDataFinalized || !userId || !staffId}
               className="w-full sm:w-auto bg-primary text-primary-foreground hover:bg-primary/90 rounded-md"
             >
               <Save className="mr-2 h-4 w-4" />
@@ -323,5 +325,3 @@ export default function SalesEntryPage() {
     </div>
   );
 }
-
-    
