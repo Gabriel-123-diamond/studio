@@ -29,7 +29,7 @@ export default function RootLayout({
   }, []);
 
   return (
-    <html lang="en" suppressHydrationWarning> {/* Add suppressHydrationWarning to html tag for next-themes */}
+    <html lang="en" suppressHydrationWarning>
       <head>
         <title>Meal Villa</title>
         <meta name="description" content="Your personalized culinary journey." />
