@@ -54,19 +54,24 @@ export async function submitSalesEntry(
       let currentData: SalesEntryData;
 
       if (!existingDoc.exists()) {
-        // No existing entry, create a new one with the submitted data
+        // No existing entry, create a new one with the submitted data (which are additions to zero)
         currentData = {
-          ...newData, // collected, soldCash, etc. are from input
           userId: userId, 
           staffId: currentStaffId,
           date: dateString, 
           isFinalized: false, 
+          collected: { ...initialProductQuantities, ...newData.collected },
+          soldCash: { ...initialProductQuantities, ...newData.soldCash },
+          soldTransfer: { ...initialProductQuantities, ...newData.soldTransfer },
+          soldCard: { ...initialProductQuantities, ...newData.soldCard },
+          returned: { ...initialProductQuantities, ...newData.returned },
+          damages: { ...initialProductQuantities, ...newData.damages },
         };
       } else {
         // Existing entry found, add new quantities to existing ones
         const existingEntry = existingDoc.data() as SalesEntryData;
         if (existingEntry.isFinalized) {
-          throw new Error("Today's sales data has been finalized and cannot be changed.");
+          throw new Error("Today's sales data has been finalized and cannot be changed by sales staff.");
         }
         currentData = {
           ...existingEntry, // Keep userId, staffId, date, isFinalized from existing
@@ -83,7 +88,7 @@ export async function submitSalesEntry(
     });
     
     revalidatePath("/app-dashboard/sales-entry"); 
-    return { success: true, message: "Sales entry updated successfully.", updatedData: finalData };
+    return { success: true, message: "Sales entry additions saved successfully.", updatedData: finalData };
   } catch (error: any) {
     console.error("Error saving sales entry:", error);
     return { success: false, message: error.message || "Failed to save sales entry. Please try again." };
@@ -112,4 +117,46 @@ export async function getTodaysSalesEntry(userId: string): Promise<SalesEntryDat
   }
 }
 
-    
+export async function resetTodaysSalesEntry(userId: string, staffId: string): Promise<{ success: boolean; message: string }> {
+  if (!userId) {
+    return { success: false, message: "User ID not provided for reset." };
+  }
+   if (!staffId) {
+    return { success: false, message: "Staff ID not provided for reset." };
+  }
+
+  const dateString = getTodayDateStringInWAT();
+  const entryId = `${userId}_${dateString}`;
+  const salesEntryRef = doc(db, "salesEntries", entryId);
+
+  const resetData: SalesEntryData = {
+    userId: userId,
+    staffId: staffId,
+    date: dateString,
+    isFinalized: false,
+    collected: { ...initialProductQuantities },
+    soldCash: { ...initialProductQuantities },
+    soldTransfer: { ...initialProductQuantities },
+    soldCard: { ...initialProductQuantities },
+    returned: { ...initialProductQuantities },
+    damages: { ...initialProductQuantities },
+  };
+
+  try {
+    // Check if entry is finalized (though sales staff shouldn't be able to finalize)
+    const existingDoc = await getDoc(salesEntryRef);
+    if (existingDoc.exists() && existingDoc.data().isFinalized) {
+        // Ideally, this check is more robust based on WHO is trying to reset.
+        // For now, if a sales staff somehow faces a finalized entry they made, we prevent reset.
+        // Managers would need a separate, more privileged reset mechanism.
+        return { success: false, message: "Today's sales data has been finalized and cannot be reset by sales staff." };
+    }
+
+    await setDoc(salesEntryRef, resetData);
+    revalidatePath("/app-dashboard/sales-entry");
+    return { success: true, message: "Today's sales data has been reset successfully." };
+  } catch (error: any) {
+    console.error("Error resetting today's sales entry:", error);
+    return { success: false, message: error.message || "Failed to reset today's sales data." };
+  }
+}

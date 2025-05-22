@@ -13,12 +13,23 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
-import { ClipboardPenLine, RotateCw, Save, Eraser } from "lucide-react";
+import { ClipboardPenLine, RotateCw, Save, Trash2 } from "lucide-react"; // Changed Eraser to Trash2 for reset
 import type { SalesEntryData, ProductQuantities } from "@/types/sales";
 import { initialProductQuantities, productTypes, productLabels } from "@/types/sales";
-import { submitSalesEntry, getTodaysSalesEntry } from "./_actions/submitSalesEntry";
+import { submitSalesEntry, getTodaysSalesEntry, resetTodaysSalesEntry } from "./_actions/submitSalesEntry"; // Added resetTodaysSalesEntry
 import { Skeleton } from "@/components/ui/skeleton";
 import type { User as FirebaseUser } from "firebase/auth";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
 
 const productQuantitySchema = z.object({
   burger: z.coerce.number().int().min(0).default(0),
@@ -91,7 +102,7 @@ const ProductQuantityInputGroup: React.FC<ProductQuantityInputGroupProps> = ({
                 />
                 <p className="text-xs text-muted-foreground mt-1">
                   {isLoadingSavedValue ? (
-                    "Loading..."
+                    "Loading quantity..."
                   ) : (
                     `Quantity: ${savedQuantities && savedQuantities[product] !== undefined ? savedQuantities[product] : 0}`
                   )}
@@ -111,6 +122,7 @@ export default function SalesEntryPage() {
   const [isLoadingUserDetails, setIsLoadingUserDetails] = useState(true);
   const [isLoadingSalesEntry, setIsLoadingSalesEntry] = useState(true); 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isResetting, setIsResetting] = useState(false);
   const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
   const [staffId, setStaffId] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
@@ -175,10 +187,10 @@ export default function SalesEntryPage() {
         damages: data.damages || initialProductQuantities,
       };
       setSavedSalesData(currentData); 
-      form.reset(defaultFormValues); 
+      form.reset(defaultFormValues); // Input fields always start at 0 for additive entry
       setIsDataFinalized(data.isFinalized || false);
       if (showToast) {
-        toast({ title: "Data Reloaded", description: "Today's sales totals have been loaded." });
+        toast({ title: "Data Reloaded", description: "Today's sales totals have been loaded. Input fields cleared for new additions." });
       }
     } else {
       setSavedSalesData(defaultFormValues); 
@@ -240,7 +252,7 @@ export default function SalesEntryPage() {
       });
       
       setSavedSalesData(result.updatedData as SalesEntryFormValues);
-      form.reset(defaultFormValues); 
+      form.reset(defaultFormValues); // Reset input fields to 0 for next additive entry
     } else {
       toast({
         title: "Submission Failed",
@@ -251,13 +263,31 @@ export default function SalesEntryPage() {
     setIsSubmitting(false);
   }
 
-  const handleClearInputs = () => {
-    form.reset(defaultFormValues);
-    toast({ title: "Inputs Cleared", description: "Input fields cleared. Ready for new additions."});
+  const handleResetTodaysData = async () => {
+    if (!userId || !staffId) {
+      toast({ title: "Error", description: "User or Staff ID not available. Cannot reset.", variant: "destructive" });
+      return;
+    }
+    if (isDataFinalized) {
+        toast({ title: "Data Finalized", description: "Cannot reset finalized data.", variant: "default" });
+        return;
+    }
+
+    setIsResetting(true);
+    const result = await resetTodaysSalesEntry(userId, staffId);
+    if (result.success) {
+      toast({ title: "Data Reset", description: result.message });
+      setSavedSalesData(defaultFormValues);
+      form.reset(defaultFormValues);
+      setIsDataFinalized(false); // Data is no longer finalized after a reset
+    } else {
+      toast({ title: "Reset Failed", description: result.message, variant: "destructive" });
+    }
+    setIsResetting(false);
   };
   
   const isPageLoading = isLoadingUserDetails || (userId && isLoadingSalesEntry && !firebaseUser); 
-  const isFormDisabled = isSubmitting || isLoadingUserDetails || isLoadingSalesEntry || isDataFinalized || !userId || !staffId;
+  const isFormDisabled = isSubmitting || isLoadingUserDetails || isLoadingSalesEntry || isDataFinalized || !userId || !staffId || isResetting;
 
 
   if (isPageLoading) { 
@@ -289,6 +319,7 @@ export default function SalesEntryPage() {
            <CardFooter className="p-6 border-t flex justify-end">
             <Skeleton className="h-10 w-24 rounded-md mr-2" />
             <Skeleton className="h-10 w-24 rounded-md" />
+            <Skeleton className="h-10 w-24 rounded-md ml-2" />
           </CardFooter>
         </Card>
       </div>
@@ -306,12 +337,12 @@ export default function SalesEntryPage() {
               <CardDescription className="text-md">
                 Enter sales data additions for {todayDateDisplay}. (Staff ID: {staffId || (isLoadingUserDetails ? "Loading..." : "N/A")})
               </CardDescription>
-              <CardDescription className="text-sm mt-1">Values entered will be ADDED to today's existing totals.</CardDescription>
+              <CardDescription className="text-sm mt-1">Values entered will be ADDED to today's existing totals. Input fields reset to 0 after saving.</CardDescription>
             </div>
           </div>
            {isDataFinalized && (
             <div className="mt-4 p-3 bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 rounded-md">
-              <p className="font-semibold">Today's entry is finalized and cannot be modified by sales staff.</p>
+              <p className="font-semibold">Today's entry is finalized and cannot be modified or reset by sales staff.</p>
             </div>
           )}
         </CardHeader>
@@ -372,20 +403,38 @@ export default function SalesEntryPage() {
             )}
           </CardContent>
           <CardFooter className="p-6 border-t flex flex-col sm:flex-row justify-end items-center gap-3">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={handleClearInputs}
-              disabled={isSubmitting || isLoadingUserDetails || isLoadingSalesEntry || isDataFinalized || !userId}
-              className="w-full sm:w-auto rounded-md"
-            >
-              <Eraser className="mr-2 h-4 w-4" /> Clear Inputs
-            </Button>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button
+                  type="button"
+                  variant="destructive"
+                  disabled={isSubmitting || isLoadingUserDetails || isLoadingSalesEntry || isDataFinalized || !userId || isResetting}
+                  className="w-full sm:w-auto rounded-md"
+                >
+                  <Trash2 className="mr-2 h-4 w-4" /> {isResetting ? "Resetting..." : "Reset Today's Data"}
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This action will reset all sales data entered for today ({todayDateDisplay}) to zero in the database. This cannot be undone.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction onClick={handleResetTodaysData} className="bg-destructive hover:bg-destructive/90">
+                    Yes, Reset Data
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+            
             <Button
               type="button"
               variant="outline"
               onClick={() => userId && loadTodaysData(userId, true)}
-              disabled={isSubmitting || isLoadingUserDetails || isLoadingSalesEntry || !userId}
+              disabled={isSubmitting || isLoadingUserDetails || isLoadingSalesEntry || !userId || isResetting}
               className="w-full sm:w-auto rounded-md"
             >
               <RotateCw className="mr-2 h-4 w-4" /> Reload Today's Totals
@@ -404,4 +453,3 @@ export default function SalesEntryPage() {
     </div>
   );
 }
-
