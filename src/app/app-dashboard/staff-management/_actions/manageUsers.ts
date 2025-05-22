@@ -1,12 +1,11 @@
 
 "use server";
 
-import { auth, db } from "@/lib/firebase";
-import { createUserWithEmailAndPassword, deleteUser as deleteAuthUser } from "firebase/auth";
-import { collection, doc, setDoc, deleteDoc, getDoc, serverTimestamp, Timestamp } from "firebase/firestore";
+import { db } from "@/lib/firebase"; // auth removed as it's not used on server for these actions
+import { collection, doc, setDoc, deleteDoc, getDoc, serverTimestamp, Timestamp, query, where, getDocs } from "firebase/firestore";
 import { revalidatePath } from "next/cache";
 import type { UserData } from "@/types/users";
-import type { DeletionRequestData } from "@/types/requests";
+import type { DeletionRequestData, AddStaffRequestData } from "@/types/requests"; // Added AddStaffRequestData
 import { sendNotificationAction } from "../../notifications/_actions/sendNotification";
 
 interface AddUserInput {
@@ -21,8 +20,12 @@ export async function addUserAction(
   actingUser: { uid: string; name?: string; role: string }
 ): Promise<{ success: boolean; message: string; newUserId?: string }> {
   if (actingUser.role !== "manager" && actingUser.role !== "developer") {
-    return { success: false, message: "Permission denied: Only managers or developers can add users." };
+    return { success: false, message: "Permission denied: Only managers or developers can add users directly." };
   }
+   if (actingUser.role === "manager" && (input.role === "developer" || input.role === "manager")) {
+    return { success: false, message: "Managers cannot assign 'developer' or 'manager' roles." };
+  }
+
 
   if (!/^\d{6}$/.test(input.staffId)) {
     return { success: false, message: "Staff ID must be exactly 6 digits." };
@@ -33,34 +36,30 @@ export async function addUserAction(
   if (!input.role || input.role === "none") {
     return { success: false, message: "A valid role must be selected." };
   }
+  
+  // Check if staffId already exists
+  const usersRef = collection(db, "users");
+  const q = query(usersRef, where("staffId", "==", input.staffId));
+  const querySnapshot = await getDocs(q);
+  if (!querySnapshot.empty) {
+    return { success: false, message: `Staff ID ${input.staffId} is already in use.` };
+  }
+
 
   const email = `${input.staffId}@mealvilla.com`;
-  const password = input.initialPassword || "password"; // Default password
+  // IMPORTANT: Firebase Auth user creation should ideally happen in a secure backend (e.g., Cloud Function)
+  // using the Admin SDK, especially when one user creates another.
+  // For this example, we'll simulate it by creating a placeholder UID if not running in an environment
+  // where client-side Auth creation would work (which it won't from a Server Action directly).
+  const newUserId = `firestore_generated_uid_${Date.now()}`; // This is a placeholder. Real Auth UID is needed.
+  console.warn(`SIMULATION: User Auth creation for ${email} is not performed by this server action. 
+    This action only creates the Firestore record. Real Firebase Auth user creation is required separately (e.g., via Admin SDK or Firebase Console). 
+    Using placeholder UID: ${newUserId}`);
 
   try {
-    // Step 1: Create user in Firebase Authentication
-    // IMPORTANT: Firebase Auth operations like createUserWithEmailAndPassword
-    // are typically done on the client or in a trusted server environment (like Cloud Functions).
-    // For this server action, we'll assume it has the necessary context IF it were a backend function.
-    // In a real Next.js app, you'd typically have a client-side flow for this or use Admin SDK in a backend.
-    // This will LIKELY FAIL if called directly from a Server Action without Admin SDK / special setup.
-    // For now, this is a placeholder for the ideal flow.
-    // A more realistic approach without Admin SDK is to manage users via Firebase Console or a dedicated admin panel with Admin SDK.
-
-    // Let's simulate admin creation - in a real app, this part MUST use Admin SDK.
-    // const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-    // const newUserId = userCredential.user.uid;
-    // For now, we'll skip Auth creation here and assume it's done manually or via another process,
-    // focusing on Firestore record creation. This is a major simplification due to Server Action limitations.
-
-    const newUserId = `simulated_uid_${Date.now()}`; // Placeholder
-    console.warn(`SIMULATION: User Auth creation skipped for ${email}. Real app needs Admin SDK.`);
-
-
-    // Step 2: Create user document in Firestore
-    const newUserDocRef = doc(db, "users", newUserId); // Use the newUserId from Auth
+    const newUserDocRef = doc(db, "users", newUserId);
     const newUserFirestoreData: UserData = {
-      id: newUserId,
+      id: newUserId, // In a real scenario, this would be the Firebase Auth UID
       staffId: input.staffId,
       name: input.name,
       email: email,
@@ -71,18 +70,12 @@ export async function addUserAction(
     revalidatePath("/app-dashboard/staff-management");
     return {
       success: true,
-      message: `User ${input.name} (${input.staffId}) added to Firestore successfully. (Auth creation simulated).`,
+      message: `User ${input.name} (ID: ${input.staffId}) added to Firestore successfully. (Auth creation simulated).`,
       newUserId: newUserId,
     };
   } catch (error: any) {
-    console.error("Error adding user:", error);
-    let message = "Failed to add user.";
-    if (error.code === "auth/email-already-in-use") {
-      message = "This Staff ID (email) is already in use.";
-    } else if (error.code === "auth/weak-password") {
-      message = "The password is too weak.";
-    }
-    return { success: false, message: message || error.message };
+    console.error("Error adding user to Firestore:", error);
+    return { success: false, message: error.message || "Failed to add user to Firestore." };
   }
 }
 
@@ -102,23 +95,14 @@ export async function deleteUserFirestoreAction(
       return { success: false, message: "User not found in Firestore." };
     }
     
-    // Add target user's role check to prevent manager deleting another manager/dev
     const targetUserData = userDocSnap.data() as UserData;
     if (actingUser.role === "manager" && (targetUserData.role === "manager" || targetUserData.role === "developer") && actingUser.uid !== targetUserId) {
          return { success: false, message: "Managers cannot delete other managers or developers." };
     }
 
-
     await deleteDoc(userDocRef);
-
-    // IMPORTANT NOTE: Deleting from Firebase Authentication
-    // To fully delete a user, you also need to delete them from Firebase Authentication.
-    // This CANNOT be done reliably or securely from a client-side initiated server action
-    // for *other users*. It requires the Firebase Admin SDK, typically run in a
-    // Firebase Cloud Function or a secure backend server.
-    // Example (conceptual, requires Admin SDK setup):
-    // import { getAuth as getAdminAuth } from 'firebase-admin/auth';
-    // await getAdminAuth().deleteUser(targetUserId);
+    // Note: Firebase Auth user deletion requires Admin SDK and is not handled here.
+    // This action only removes the Firestore record.
 
     revalidatePath("/app-dashboard/staff-management");
     return {
@@ -130,7 +114,6 @@ export async function deleteUserFirestoreAction(
     return { success: false, message: error.message || "Failed to delete user from Firestore." };
   }
 }
-
 
 interface RequestUserDeletionInput {
   targetUserUid: string;
@@ -151,7 +134,6 @@ export async function requestUserDeletionAction(
     return { success: false, message: "Supervisors cannot request deletion of managers, developers, or other supervisors." };
   }
 
-
   try {
     const requestDocRef = doc(collection(db, "deletionRequests"));
     const newRequest: DeletionRequestData = {
@@ -167,10 +149,8 @@ export async function requestUserDeletionAction(
       requestTimestamp: serverTimestamp() as Timestamp,
       reasonForRequest: input.reasonForRequest || "",
     };
-
     await setDoc(requestDocRef, newRequest);
 
-    // Send notification to managers
     await sendNotificationAction({
         senderId: supervisorUser.uid,
         senderName: supervisorUser.name || "System (Deletion Request)",
@@ -179,10 +159,8 @@ export async function requestUserDeletionAction(
         message: `A request to delete staff ${input.targetUserName} (ID: ${input.targetStaffId}) has been submitted by ${supervisorUser.name}. Please review in Approval Requests.`,
     });
 
-
     revalidatePath("/app-dashboard/staff-management");
     revalidatePath("/app-dashboard/approval-requests");
-
     return {
       success: true,
       message: "Deletion request submitted successfully. It is now pending manager approval.",
@@ -191,5 +169,76 @@ export async function requestUserDeletionAction(
   } catch (error: any) {
     console.error("Error submitting deletion request:", error);
     return { success: false, message: error.message || "Failed to submit deletion request." };
+  }
+}
+
+
+interface RequestAddUserInput extends AddUserInput { // Re-use AddUserInput for structure
+  reasonForRequest?: string;
+}
+export async function requestAddUserAction(
+  input: RequestAddUserInput,
+  supervisorUser: { uid: string; name: string; role: string }
+): Promise<{ success: boolean; message: string; requestId?: string }> {
+  if (supervisorUser.role !== "supervisor") {
+    return { success: false, message: "Permission denied: Only supervisors can request to add users." };
+  }
+  if (input.role === "manager" || input.role === "developer") {
+    return { success: false, message: "Supervisors cannot request to add 'manager' or 'developer' roles." };
+  }
+   if (!/^\d{6}$/.test(input.staffId)) {
+    return { success: false, message: "Staff ID must be exactly 6 digits." };
+  }
+  if (!input.name.trim()) {
+    return { success: false, message: "Name cannot be empty." };
+  }
+  if (!input.role || input.role === "none") {
+    return { success: false, message: "A valid role must be selected." };
+  }
+
+  // Check if staffId already exists
+  const usersRef = collection(db, "users");
+  const q = query(usersRef, where("staffId", "==", input.staffId));
+  const querySnapshot = await getDocs(q);
+  if (!querySnapshot.empty) {
+    return { success: false, message: `Staff ID ${input.staffId} is already in use by an existing user.` };
+  }
+
+
+  try {
+    const requestDocRef = doc(collection(db, "addStaffRequests"));
+    const newAddRequest: AddStaffRequestData = {
+      id: requestDocRef.id,
+      requestedByUid: supervisorUser.uid,
+      requestedByName: supervisorUser.name || "Supervisor",
+      requestedByRole: supervisorUser.role,
+      targetUserName: input.name,
+      targetStaffId: input.staffId,
+      targetUserRole: input.role,
+      initialPassword: input.initialPassword || "password", // Default if not provided
+      status: "pending",
+      requestTimestamp: serverTimestamp() as Timestamp,
+      reasonForRequest: input.reasonForRequest || "",
+    };
+    await setDoc(requestDocRef, newAddRequest);
+
+    await sendNotificationAction({
+        senderId: supervisorUser.uid,
+        senderName: supervisorUser.name || "System (Add Staff Request)",
+        senderRole: supervisorUser.role,
+        title: "New Add Staff Request",
+        message: `A request to add staff ${input.name} (ID: ${input.staffId}, Role: ${input.role}) has been submitted by ${supervisorUser.name}. Please review in Approval Requests.`,
+    });
+
+    revalidatePath("/app-dashboard/staff-management");
+    revalidatePath("/app-dashboard/approval-requests");
+    return {
+      success: true,
+      message: "Request to add staff submitted successfully. It is now pending manager approval.",
+      requestId: requestDocRef.id,
+    };
+  } catch (error: any) {
+    console.error("Error submitting add staff request:", error);
+    return { success: false, message: error.message || "Failed to submit add staff request." };
   }
 }
