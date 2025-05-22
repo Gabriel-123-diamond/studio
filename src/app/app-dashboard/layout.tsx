@@ -14,6 +14,7 @@ import {
 import { auth, db } from "@/lib/firebase";
 import { onAuthStateChanged, signOut as firebaseSignOut, type User as FirebaseUser } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
+import type { UserData } from '@/types/users'; // Import UserData type
 
 import {
   SidebarProvider,
@@ -33,7 +34,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'; 
 
-enum UserRole {
+enum UserRoleEnum { // Renamed to avoid conflict if UserRole is used elsewhere
   MANAGER = "manager",
   SUPERVISOR = "supervisor",
   STAFF = "staff",
@@ -60,43 +61,35 @@ export default function AppDashboardLayout({ children }: { children: ReactNode }
   const router = useRouter();
   const pathname = usePathname();
   const { toast } = useToast();
-  const [currentUserRole, setCurrentUserRole] = useState<UserRole>(UserRole.NONE);
-  const [staffId, setStaffId] = useState<string | null>(null);
-  const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [currentUserData, setCurrentUserData] = useState<UserData | null>(null); // Store full UserData
   const [isLoadingSession, setIsLoadingSession] = useState(true);
-  const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
+  const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null); // Keep firebaseUser for auth state
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
         setFirebaseUser(user);
-        setUserEmail(user.email); 
         try {
           const userDocRef = doc(db, "users", user.uid);
           const userDocSnap = await getDoc(userDocRef);
           if (userDocSnap.exists()) {
-            const userData = userDocSnap.data();
-            setCurrentUserRole(userData.role as UserRole || UserRole.NONE);
-            setStaffId(userData.staffId || null);
-            if (!userData.role) {
+            const fetchedUserData = userDocSnap.data() as Omit<UserData, 'id'>;
+            setCurrentUserData({ id: user.uid, ...fetchedUserData, role: fetchedUserData.role || UserRoleEnum.NONE });
+            if (!fetchedUserData.role) {
                  console.warn("User document in Firestore is missing 'role' field for UID:", user.uid);
             }
           } else {
             console.error("User document not found in Firestore for UID:", user.uid);
             toast({ title: "User Data Error", description: "Your user details could not be found. Please contact support.", variant: "destructive" });
-            setCurrentUserRole(UserRole.NONE);
-            setStaffId(null);
+            setCurrentUserData({ id: user.uid, staffId: "N/A", name: user.email || "Unknown", email: user.email || "", role: UserRoleEnum.NONE });
           }
         } catch (error) {
           console.error("Error fetching user role from Firestore:", error);
           toast({ title: "Session Error", description: "Could not retrieve user details. Please try again.", variant: "destructive" });
-          setCurrentUserRole(UserRole.NONE);
-          setStaffId(null);
+           setCurrentUserData({ id: user.uid, staffId: "N/A", name: user.email || "Unknown", email: user.email || "", role: UserRoleEnum.NONE });
         }
       } else {
-        setCurrentUserRole(UserRole.NONE);
-        setStaffId(null);
-        setUserEmail(null);
+        setCurrentUserData(null);
         setFirebaseUser(null);
         router.push('/login');
       }
@@ -108,9 +101,7 @@ export default function AppDashboardLayout({ children }: { children: ReactNode }
   const handleLogout = async () => {
     try {
       await firebaseSignOut(auth);
-      setCurrentUserRole(UserRole.NONE);
-      setStaffId(null);
-      setUserEmail(null);
+      setCurrentUserData(null);
       setFirebaseUser(null);
       toast({title: "Logged Out", description: "You have been successfully logged out."});
       router.push('/login');
@@ -121,6 +112,7 @@ export default function AppDashboardLayout({ children }: { children: ReactNode }
   };
 
   const pageTitle = getPageTitle(pathname);
+  const currentUserRole = currentUserData?.role || UserRoleEnum.NONE;
 
   if (isLoadingSession) {
     return (
@@ -136,25 +128,28 @@ export default function AppDashboardLayout({ children }: { children: ReactNode }
     );
   }
   
-  const isManager = currentUserRole === UserRole.MANAGER;
-  const isSupervisor = currentUserRole === UserRole.SUPERVISOR;
-  const isStaff = currentUserRole === UserRole.STAFF;
-  const isDeveloper = currentUserRole === UserRole.DEVELOPER;
+  const isManager = currentUserRole === UserRoleEnum.MANAGER;
+  const isSupervisor = currentUserRole === UserRoleEnum.SUPERVISOR;
+  const isStaff = currentUserRole === UserRoleEnum.STAFF;
+  const isDeveloper = currentUserRole === UserRoleEnum.DEVELOPER;
 
-  const userEmailDisplay = userEmail || "user@mealvilla.com";
-  const userNameDisplay = staffId 
-    ? `${currentUserRole.charAt(0).toUpperCase() + currentUserRole.slice(1)} (ID: ${staffId})`
-    : firebaseUser ? `${currentUserRole.charAt(0).toUpperCase() + currentUserRole.slice(1)} User` : "User";
+  const userEmailDisplay = currentUserData?.email || "user@mealvilla.com";
+  const userNameDisplay = currentUserData 
+    ? `${currentUserData.name || (currentUserData.role.charAt(0).toUpperCase() + currentUserData.role.slice(1))} (ID: ${currentUserData.staffId || 'N/A'})`
+    : "User";
   const avatarFallback = userNameDisplay.substring(0,2).toUpperCase();
   
   const canAccessPage = () => {
     if (isLoadingSession) return true; 
-    if (currentUserRole === UserRole.NONE && !(pathname === '/app-dashboard/profile' || pathname === '/app-dashboard/settings')) return false;
+    if (currentUserRole === UserRoleEnum.NONE && !(pathname === '/app-dashboard/profile' || pathname === '/app-dashboard/settings')) {
+      if (!router.pathname.startsWith('/login')) router.push('/login'); // Redirect if no role and not already trying to login
+      return false;
+    }
     
     const managerRoutes = ['/app-dashboard/role-management', '/app-dashboard/activity-overview', '/app-dashboard/audit-trail'];
     const devRoutes = ['/app-dashboard/dev-tools'];
     const supervisorRoutes = ['/app-dashboard/activity-tracking'];
-    const staffRoutes = ['/app-dashboard/notifications', '/app-dashboard/sales-entry']; // Removed '/app-dashboard/my-tasks'
+    const staffRoutes = ['/app-dashboard/notifications', '/app-dashboard/sales-entry'];
     const sharedApprovalRoute = '/app-dashboard/approval-requests';
     const sharedStaffManagementRoute = '/app-dashboard/staff-management';
 
@@ -174,6 +169,7 @@ export default function AppDashboardLayout({ children }: { children: ReactNode }
       if (staffRoutes.includes(pathname)) return true;
     }
     
+    // Common pages accessible by all authenticated users
     if (pathname === '/app-dashboard' || pathname === '/app-dashboard/profile' || pathname === '/app-dashboard/settings') return true;
 
     return false; 
@@ -267,9 +263,9 @@ export default function AppDashboardLayout({ children }: { children: ReactNode }
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                   <SidebarMenuItem>
-                    <SidebarMenuButton href="/app-dashboard/approval-requests" tooltip="Send Requests" isActive={pathname === '/app-dashboard/approval-requests'}>
+                    <SidebarMenuButton href="/app-dashboard/approval-requests" tooltip="Approval Requests" isActive={pathname === '/app-dashboard/approval-requests'}>
                       <Send />
-                      <span>Send Requests</span>
+                      <span>Approval Requests</span>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                   <SidebarMenuItem>
@@ -298,6 +294,16 @@ export default function AppDashboardLayout({ children }: { children: ReactNode }
                   </SidebarMenuItem>
                 </>
               )}
+                {/* General Notifications Link - accessible by more roles if needed */}
+                {(isManager || isDeveloper || isSupervisor) && !isStaff && ( // Example: All except staff who have their own section
+                     <SidebarMenuItem>
+                        <SidebarMenuButton href="/app-dashboard/notifications" tooltip="Notifications" isActive={pathname === '/app-dashboard/notifications'}>
+                        <BellIcon />
+                        <span>Notifications</span>
+                        </SidebarMenuButton>
+                    </SidebarMenuItem>
+                )}
+
 
             </SidebarMenu>
           </SidebarContent>
@@ -305,7 +311,7 @@ export default function AppDashboardLayout({ children }: { children: ReactNode }
           <SidebarFooter className="p-4 border-t">
             <div className="flex items-center gap-3 group-data-[state=collapsed]/sidebar-internal:justify-center">
               <Avatar className="h-9 w-9 group-data-[state=collapsed]/sidebar-internal:h-7 group-data-[state=collapsed]/sidebar-internal:w-7">
-                <AvatarImage src="https://placehold.co/100x100.png" alt="User Avatar" data-ai-hint="user avatar" />
+                <AvatarImage src={currentUserData?.avatarUrl || "https://placehold.co/100x100.png"} alt="User Avatar" data-ai-hint="user avatar" />
                 <AvatarFallback>{avatarFallback}</AvatarFallback>
               </Avatar>
               <div className="group-data-[state=collapsed]/sidebar-internal:hidden">
