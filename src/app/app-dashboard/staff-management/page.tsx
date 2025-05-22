@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
-import { useForm } from "react-hook-form";
+import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { auth, db } from "@/lib/firebase";
@@ -74,6 +74,7 @@ type RequestAddUserFormValues = z.infer<typeof requestAddUserFormSchema>;
 
 export default function StaffManagementPage() {
   const { toast } = useToast();
+  const [isMounted, setIsMounted] = useState(false);
   const [currentUser, setCurrentUser] = useState<{ uid: string; name?: string; role: UserData["role"] } | null>(null);
   const [isLoadingCurrentUser, setIsLoadingCurrentUser] = useState(true);
   const [staffList, setStaffList] = useState<UserData[]>([]);
@@ -86,7 +87,7 @@ export default function StaffManagementPage() {
 
   const [isRequestDeleteDialogOpen, setIsRequestDeleteDialogOpen] = useState(false);
   const [userToRequestDelete, setUserToRequestDelete] = useState<UserData | null>(null);
-  const [userToDeleteDirectly, setUserToDeleteDirectly] = useState<UserData | null>(null); // For manager direct delete confirmation
+  const [userToDeleteDirectly, setUserToDeleteDirectly] = useState<UserData | null>(null);
 
 
   const addUserForm = useForm<AddUserFormValues>({
@@ -104,6 +105,9 @@ export default function StaffManagementPage() {
     defaultValues: { name: "", staffId: "", role: UserRoleEnum.STAFF, initialPassword: "", reasonForRequest: "" },
   });
 
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   const fetchCurrentUser = useCallback(async (userAuth: FirebaseUser) => {
     setIsLoadingCurrentUser(true);
@@ -130,6 +134,8 @@ export default function StaffManagementPage() {
   }, [toast]);
 
   useEffect(() => {
+    if (!isMounted) return;
+
     const unsubscribe = auth.onAuthStateChanged((userAuth) => {
       if (userAuth) {
         fetchCurrentUser(userAuth);
@@ -140,12 +146,12 @@ export default function StaffManagementPage() {
       }
     });
     return () => unsubscribe();
-  }, [fetchCurrentUser]);
+  }, [isMounted, fetchCurrentUser]);
 
   useEffect(() => {
-    if (!currentUser) {
-        setIsLoadingStaffList(false); // Not loading if no current user
-        setStaffList([]); // Clear staff list if no current user
+    if (!isMounted || !currentUser) {
+        setIsLoadingStaffList(false); 
+        setStaffList([]); 
         return;
     }
     
@@ -164,7 +170,7 @@ export default function StaffManagementPage() {
       setIsLoadingStaffList(false);
     });
     return () => unsubscribe();
-  }, [currentUser, toast]);
+  }, [isMounted, currentUser, toast]);
 
   const canManageUsers = useMemo(() => currentUser?.role === UserRoleEnum.MANAGER || currentUser?.role === UserRoleEnum.DEVELOPER, [currentUser]);
   const isSupervisor = useMemo(() => currentUser?.role === UserRoleEnum.SUPERVISOR, [currentUser]);
@@ -267,7 +273,7 @@ export default function StaffManagementPage() {
     return "Staff information display. Limited access.";
   };
 
-  if (isLoadingCurrentUser) {
+  if (!isMounted || isLoadingCurrentUser) {
     return <div className="p-6"><Skeleton className="h-10 w-1/2 mb-4" /><Skeleton className="h-48 w-full" /></div>;
   }
   if (!currentUser) {
@@ -294,7 +300,6 @@ export default function StaffManagementPage() {
                 <DialogContent className="sm:max-w-[425px]">
                   <DialogHeader> <DialogTitle>Add New Staff Member</DialogTitle> <DialogDescription>Email will be {`{staffId}@mealvilla.com`}. Initial password defaults to 'password' if not set.</DialogDescription> </DialogHeader>
                   <form onSubmit={addUserForm.handleSubmit(handleAddUser)} className="space-y-4 py-4">
-                    {/* Name, StaffID, Role, Password fields same as before */}
                      <div> <Label htmlFor="name_add">Full Name</Label> <Input id="name_add" {...addUserForm.register("name")} className="mt-1 rounded-md" /> {addUserForm.formState.errors.name && <p className="text-sm text-destructive mt-1">{addUserForm.formState.errors.name.message}</p>} </div>
                     <div> <Label htmlFor="staffId_add">Staff ID (6 digits)</Label> <Input id="staffId_add" {...addUserForm.register("staffId")} className="mt-1 rounded-md" maxLength={6}/> {addUserForm.formState.errors.staffId && <p className="text-sm text-destructive mt-1">{addUserForm.formState.errors.staffId.message}</p>} </div>
                     <div> <Label htmlFor="role_add">Role</Label>
@@ -424,3 +429,5 @@ export default function StaffManagementPage() {
     </div>
   );
 }
+
+    
