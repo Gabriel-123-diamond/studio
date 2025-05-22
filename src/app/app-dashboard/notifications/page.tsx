@@ -19,6 +19,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import type { NotificationData } from "@/types/notifications";
 import { sendNotificationAction } from "./_actions/sendNotification";
 import { formatDistanceToNow } from 'date-fns';
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 
 enum UserRole {
@@ -136,20 +137,20 @@ export default function NotificationsPage() {
 
   if (isLoadingUserDetails) {
     return (
-      <div className="w-full space-y-6">
-        <Card className="shadow-lg rounded-lg">
+      <div className="w-full flex flex-col flex-1 space-y-6">
+        <Card className="shadow-lg rounded-lg flex-1 flex flex-col">
           <CardHeader className="bg-muted/30 p-6 rounded-t-lg">
             <div className="flex items-center space-x-4"> <Skeleton className="h-10 w-10 rounded-full" /> <div> <Skeleton className="h-8 w-48 rounded" /> <Skeleton className="h-4 w-64 mt-1 rounded" /> </div> </div>
           </CardHeader>
-          <CardContent className="p-6"> <Skeleton className="h-32 w-full rounded" /> <Skeleton className="h-20 w-full mt-4 rounded" /> </CardContent>
+          <CardContent className="p-6 flex-1"> <Skeleton className="h-32 w-full rounded" /> <Skeleton className="h-20 w-full mt-4 rounded" /> </CardContent>
         </Card>
       </div>
     );
   }
 
   return (
-    <div className="w-full space-y-8">
-      <Card className="shadow-xl rounded-lg overflow-hidden">
+    <div className="w-full flex flex-col flex-1 space-y-6"> {/* Ensure this container can grow */}
+      <Card className="shadow-xl rounded-lg overflow-hidden flex flex-col flex-1"> {/* Card grows and is flex column */}
         <CardHeader className="bg-muted/30 p-6">
           <div className="flex items-center space-x-4">
             <Bell className="h-10 w-10 text-primary" />
@@ -165,7 +166,7 @@ export default function NotificationsPage() {
         </CardHeader>
 
         {canSendNotifications && (
-          <CardContent className="p-6 border-b">
+          <CardContent className="p-6 border-b"> {/* Form content, does not grow */}
             <form onSubmit={form.handleSubmit(onSubmitNotification)} className="space-y-6">
               <h3 className="text-xl font-semibold text-foreground/90">Send a New Notification</h3>
               <div>
@@ -186,7 +187,7 @@ export default function NotificationsPage() {
           </CardContent>
         )}
 
-        <CardContent className="p-6">
+        <CardContent className="p-6 flex-1 flex flex-col min-h-0"> {/* List content, grows and is flex column */}
           <h3 className="text-xl font-semibold mb-4 text-foreground/90">
             {canSendNotifications ? "Received & Sent Notifications" : "Received Notifications"}
           </h3>
@@ -195,38 +196,38 @@ export default function NotificationsPage() {
               {[1, 2, 3].map(i => <Skeleton key={i} className="h-24 w-full rounded-lg" />)}
             </div>
           ) : notifications.length === 0 ? (
-            <div className="mt-8 p-8 border border-dashed border-muted-foreground/50 rounded-lg text-center">
-              <div className="flex justify-center items-center mb-4">
-                <MessageSquareWarning className="h-12 w-12 text-primary/70" />
-              </div>
+            <div className="mt-8 p-8 border border-dashed border-muted-foreground/50 rounded-lg text-center flex-1 flex flex-col justify-center items-center">
+              <MessageSquareWarning className="h-12 w-12 text-primary/70 mb-4" />
               <p className="text-xl font-semibold text-muted-foreground">No Notifications Yet</p>
               <p className="text-sm text-muted-foreground mt-2">
                 {canSendNotifications ? "Send a notification to get started, or check back later." : "Check back later for updates."}
               </p>
             </div>
           ) : (
-            <div className="space-y-4">
-              {notifications.map((notif) => (
-                <Card key={notif.id} className="shadow-sm rounded-lg hover:shadow-md transition-shadow">
-                  <CardHeader className="p-4 pb-2">
-                    <CardTitle className="text-lg">{notif.title}</CardTitle>
-                    <CardDescription className="text-xs text-muted-foreground">
-                      Sent by: {notif.senderName || notif.senderRole} ({notif.senderRole}) - {}
-                      {notif.timestamp ? formatDistanceToNow(notif.timestamp.toDate(), { addSuffix: true }) : 'Sending...'}
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="p-4 pt-0">
-                    <p className="text-sm text-foreground/90">{notif.message}</p>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
+            <ScrollArea className="flex-1 pr-2"> {/* ScrollArea takes remaining space */}
+              <div className="space-y-4">
+                {notifications.map((notif) => (
+                  <Card key={notif.id} className="shadow-sm rounded-lg hover:shadow-md transition-shadow">
+                    <CardHeader className="p-4 pb-2">
+                      <CardTitle className="text-lg">{notif.title}</CardTitle>
+                      <CardDescription className="text-xs text-muted-foreground">
+                        Sent by: {notif.senderName || notif.senderRole} ({notif.senderRole}) - {}
+                        {notif.timestamp ? formatDistanceToNow(notif.timestamp.toDate(), { addSuffix: true }) : 'Sending...'}
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="p-4 pt-0">
+                      <p className="text-sm text-foreground/90">{notif.message}</p>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </ScrollArea>
           )}
         </CardContent>
       </Card>
 
       {currentUserRole === UserRole.NONE && !isLoadingUserDetails && (
-        <Card className="shadow-lg rounded-lg border-destructive">
+        <Card className="shadow-lg rounded-lg border-destructive mt-6"> {/* Ensures spacing if this card appears */}
           <CardHeader className="bg-destructive/10 p-6 rounded-t-lg">
             <div className="flex items-center space-x-3">
               <AlertTriangle className="h-8 w-8 text-destructive" />
@@ -242,3 +243,4 @@ export default function NotificationsPage() {
     </div>
   );
 }
+
