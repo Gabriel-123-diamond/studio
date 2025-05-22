@@ -5,6 +5,7 @@ import { Geist, Geist_Mono } from 'next/font/google';
 import './globals.css';
 import { Toaster } from "@/components/ui/toaster";
 import { useState, useEffect } from 'react';
+import { ThemeProvider } from "next-themes";
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
@@ -28,7 +29,7 @@ export default function RootLayout({
   }, []);
 
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning> {/* Add suppressHydrationWarning to html tag for next-themes */}
       <head>
         <title>Meal Villa</title>
         <meta name="description" content="Your personalized culinary journey." />
@@ -38,8 +39,10 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
         suppressHydrationWarning={true}
       >
-        {children}
-        {isClient && <Toaster />}
+        <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+          {children}
+          {isClient && <Toaster />}
+        </ThemeProvider>
       </body>
     </html>
   );
