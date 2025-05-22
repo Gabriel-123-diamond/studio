@@ -58,24 +58,29 @@ const ProductQuantityInputGroup: React.FC<ProductQuantityInputGroupProps> = ({ c
     <CardHeader className="p-4 bg-muted/20 rounded-t-lg">
       <CardTitle className="text-lg">{title}</CardTitle>
     </CardHeader>
-    <CardContent className="p-4 grid grid-cols-2 md:grid-cols-4 gap-4">
+    <CardContent className="p-4 grid grid-cols-2 md:grid-cols-4 gap-x-4 gap-y-6"> {/* Increased gap-y */}
       {productTypes.map((product) => (
         <div key={product} className="space-y-1.5">
-          <Label htmlFor={`${namePrefix}.${product}`} className="text-sm font-medium text-muted-foreground">
+          <Label htmlFor={`${namePrefix}.${product}`} className="text-sm font-medium"> {/* Removed text-muted-foreground for better visibility */}
             {productLabels[product]}
           </Label>
           <Controller
             name={`${namePrefix}.${product}`}
             control={control}
             render={({ field }) => (
-              <Input
-                {...field}
-                id={`${namePrefix}.${product}`}
-                type="number"
-                min="0"
-                className="rounded-md"
-                onChange={(e) => field.onChange(parseInt(e.target.value, 10) || 0)}
-              />
+              <>
+                <Input
+                  {...field}
+                  id={`${namePrefix}.${product}`}
+                  type="number"
+                  min="0"
+                  className="rounded-md"
+                  onChange={(e) => field.onChange(parseInt(e.target.value, 10) || 0)}
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Current Value: {field.value !== undefined && field.value !== null ? field.value : 0}
+                </p>
+              </>
             )}
           />
         </div>
@@ -308,3 +313,5 @@ export default function SalesEntryPage() {
     </div>
   );
 }
+
+    
